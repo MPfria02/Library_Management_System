@@ -70,6 +70,13 @@
 			<artifactId>spring-security-test</artifactId>
 			<scope>test</scope>
 		</dependency>
+		<!-- H2 Database for Testing -->
+    <dependency>
+        <groupId>com.h2database</groupId>
+        <artifactId>h2</artifactId>
+        <scope>runtime</scope>
+        <optional>true</optional>
+    </dependency>
 
 		<!-- JWT Dependencies -->
 		<dependency>
