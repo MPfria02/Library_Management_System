@@ -55,10 +55,9 @@ public class BookCatalogService {
         }
         
         // Business rule: Available copies cannot exceed total copies
-        if (book.getAvailableCopies() > book.getTotalCopies()) {
-            log.warn("Available copies ({}) cannot exceed total copies ({})", 
-                book.getAvailableCopies(), book.getTotalCopies());
-            throw new IllegalArgumentException("Available copies cannot exceed total copies");
+        if (book.getTotalCopies() < 1) {
+            log.warn("Total copies must be at least 1");
+            throw new IllegalArgumentException("Total copies must be at least 1");
         }
         
         Book savedBook = bookRepository.save(book);
@@ -222,20 +221,5 @@ public class BookCatalogService {
     public List<Book> findBooksByAuthor(String author) {
         log.debug("Finding books by author: {}", author);
         return bookRepository.findByAuthorContainingIgnoreCase(author);
-    }
-
-    // ========== Package-private methods for internal use ==========
-
-    /**
-     * Internal method to get book entity for other services.
-     * Used by services that need the actual entity (like LoanService).
-     * 
-     * @param id the book ID
-     * @return the book entity
-     * @throws IllegalArgumentException if book not found
-     */
-    Book getBookEntity(Long id) {
-        return bookRepository.findById(id)
-            .orElseThrow(() -> new IllegalArgumentException("Book with ID " + id + " not found"));
     }
 }

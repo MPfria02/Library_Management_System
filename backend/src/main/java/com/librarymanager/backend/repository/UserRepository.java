@@ -50,8 +50,11 @@ public interface UserRepository extends JpaRepository<User, Long> {
      * @param lastName partial last name
      * @return list of matching users
      */
-    @Query("SELECT u FROM User u WHERE " +
-           "LOWER(u.firstName) LIKE LOWER(CONCAT('%', :firstName, '%')) OR " +
-           "LOWER(u.lastName) LIKE LOWER(CONCAT('%', :lastName, '%'))")
+    @Query("""
+        SELECT u FROM User u
+        WHERE (:firstName IS NOT NULL AND :firstName <> '' AND LOWER(u.firstName) LIKE LOWER(CONCAT('%', :firstName, '%')))
+        OR (:lastName IS NOT NULL AND :lastName <> '' AND LOWER(u.lastName) LIKE LOWER(CONCAT('%', :lastName, '%')))
+    """)
+
     List<User> findByNameContainingIgnoreCase(String firstName, String lastName);
 }
