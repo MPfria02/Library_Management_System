@@ -64,6 +64,21 @@ public class UserService {
     }
 
     /**
+     * Creates a new user after validating unique email.
+     *
+     * @param user user entity to persist
+     * @return saved user
+     * @throws IllegalArgumentException when email already exists
+     */
+    public User createUser(User user) {
+        log.info("Creating user with email: {}", user.getEmail());
+        if (userRepository.existsByEmail(user.getEmail())) {
+            throw new IllegalArgumentException("Email already in use: " + user.getEmail());
+        }
+        return userRepository.save(user);
+    }
+
+    /**
      * Retrieves all members ordered by last name, first name.
      * 
      * @return List of member users
@@ -97,6 +112,23 @@ public class UserService {
     public boolean existsByEmail(String email) {
         log.debug("Checking if user exists with email: {}", email);
         return userRepository.existsByEmail(email);
+    }
+
+    /**
+     * Authenticates a user by email and password.
+     *
+     * Note: Plain-text password comparison is used here because
+     * password hashing/security layer is not implemented yet.
+     *
+     * @param email user email
+     * @param password user password
+     * @return Optional user when credentials are valid
+     */
+    @Transactional(readOnly = true)
+    public Optional<User> authenticate(String email, String password) {
+        log.debug("Authenticating user by email: {}", email);
+        return userRepository.findByEmail(email)
+            .filter(u -> u.getPassword().equals(password));
     }
 
     /**
