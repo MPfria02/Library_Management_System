@@ -2,6 +2,9 @@ package com.librarymanager.backend.service;
 
 import com.librarymanager.backend.entity.Book;
 import com.librarymanager.backend.entity.BookGenre;
+import com.librarymanager.backend.exception.BusinessRuleViolationException;
+import com.librarymanager.backend.exception.DuplicateResourceException;
+import com.librarymanager.backend.exception.ResourceNotFoundException;
 import com.librarymanager.backend.repository.BookRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -43,7 +46,8 @@ public class BookCatalogService {
      * 
      * @param book the book to create
      * @return the created book with generated ID
-     * @throws IllegalArgumentException if book with same ISBN already exists
+     * @throws DuplicateResourceException if book with same ISBN already exists
+     * @throws BusinessRuleViolationException if business rules are violated
      */
     public Book createBook(Book book) {
         log.info("Creating new book with ISBN: {}", book.getIsbn());
@@ -51,13 +55,13 @@ public class BookCatalogService {
         // Business rule: ISBN must be unique
         if (bookRepository.findByIsbn(book.getIsbn()).isPresent()) {
             log.warn("Attempted to create book with duplicate ISBN: {}", book.getIsbn());
-            throw new IllegalArgumentException("Book with ISBN " + book.getIsbn() + " already exists");
+            throw DuplicateResourceException.forBookIsbn(book.getIsbn());
         }
         
         // Business rule: Available copies cannot exceed total copies
         if (book.getTotalCopies() < 1) {
             log.warn("Total copies must be at least 1");
-            throw new IllegalArgumentException("Total copies must be at least 1");
+            throw BusinessRuleViolationException.minimumCopiesRequired();
         }
         
         Book savedBook = bookRepository.save(book);
@@ -95,7 +99,8 @@ public class BookCatalogService {
      * 
      * @param book the book with updated information
      * @return the updated book
-     * @throws IllegalArgumentException if book doesn't exist or business rules violated
+     * @throws ResourceNotFoundException if book doesn't exist
+     * @throws BusinessRuleViolationException if business rules are violated
      */
     public Book updateBook(Book book) {
         log.info("Updating book with ID: {}", book.getId());
@@ -104,12 +109,12 @@ public class BookCatalogService {
         Optional<Book> existingBook = bookRepository.findById(book.getId());
         if (existingBook.isEmpty()) {
             log.warn("Attempted to update non-existent book with ID: {}", book.getId());
-            throw new IllegalArgumentException("Book with ID " + book.getId() + " does not exist");
+            throw ResourceNotFoundException.forBook(book.getId());
         }
             
         // Business rule: Available copies validation
         if (book.getAvailableCopies() > book.getTotalCopies()) {
-            throw new IllegalArgumentException("Available copies cannot exceed total copies");
+            throw BusinessRuleViolationException.invalidCopyCounts(book.getAvailableCopies(), book.getTotalCopies());
         }
         
         Book updatedBook = bookRepository.save(book);
@@ -121,7 +126,8 @@ public class BookCatalogService {
      * Deletes a book by ID.
      * 
      * @param id the book ID to delete
-     * @throws IllegalStateException if book has borrowed copies
+     * @throws ResourceNotFoundException if book doesn't exist
+     * @throws BusinessRuleViolationException if book has borrowed copies
      */
     public void deleteBook(Long id) {
         log.info("Attempting to delete book with ID: {}", id);
@@ -129,7 +135,7 @@ public class BookCatalogService {
         Optional<Book> book = bookRepository.findById(id);
         if (book.isEmpty()) {
             log.warn("Attempted to delete non-existent book with ID: {}", id);
-            throw new IllegalArgumentException("Book with ID " + id + " does not exist");
+            throw ResourceNotFoundException.forBook(id);
         }
         
         // Business rule: Cannot delete book with borrowed copies
@@ -137,8 +143,7 @@ public class BookCatalogService {
         if (bookEntity.getAvailableCopies() < bookEntity.getTotalCopies()) {
             log.warn("Cannot delete book with borrowed copies. Book: {}, Available: {}, Total: {}",
                 bookEntity.getTitle(), bookEntity.getAvailableCopies(), bookEntity.getTotalCopies());
-            throw new IllegalStateException("Cannot delete book with borrowed copies. " +
-                "Please ensure all copies are returned first.");
+            throw BusinessRuleViolationException.cannotDeleteBookWithBorrowedCopies(bookEntity.getTitle());
         }
         
         bookRepository.deleteById(id);

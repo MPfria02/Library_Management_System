@@ -2,6 +2,9 @@ package com.librarymanager.backend.service;
 
 import com.librarymanager.backend.entity.User;
 import com.librarymanager.backend.entity.UserRole;
+import com.librarymanager.backend.exception.AuthenticationException;
+import com.librarymanager.backend.exception.DuplicateResourceException;
+import com.librarymanager.backend.exception.ResourceNotFoundException;
 import com.librarymanager.backend.repository.UserRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -68,12 +71,12 @@ public class UserService {
      *
      * @param user user entity to persist
      * @return saved user
-     * @throws IllegalArgumentException when email already exists
+     * @throws DuplicateResourceException when email already exists
      */
     public User createUser(User user) {
         log.info("Creating user with email: {}", user.getEmail());
         if (userRepository.existsByEmail(user.getEmail())) {
-            throw new IllegalArgumentException("Email already in use: " + user.getEmail());
+            throw DuplicateResourceException.forUserEmail(user.getEmail());
         }
         return userRepository.save(user);
     }
@@ -123,12 +126,18 @@ public class UserService {
      * @param email user email
      * @param password user password
      * @return Optional user when credentials are valid
+     * @throws AuthenticationException when email or password is invalid
      */
     @Transactional(readOnly = true)
     public Optional<User> authenticate(String email, String password) {
         log.debug("Authenticating user by email: {}", email);
-        return userRepository.findByEmail(email)
-            .filter(u -> u.getPassword().equals(password));
+        if (email == null || !findByEmail(email).isPresent()) {
+            throw AuthenticationException.invalidEmail(email);
+        }
+        if (password == null || !findByEmail(email).get().getPassword().equals(password)) {
+            throw AuthenticationException.invalidPassword(password);
+        }
+        return findByEmail(email);
     }
 
     /**
@@ -149,6 +158,7 @@ public class UserService {
      * 
      * @param user the user with updated information
      * @return the updated user
+     * @throws ResourceNotFoundException when user doesn't exist
      */
     public User updateUser(User user) {
         log.info("Updating user with ID: {}", user.getId());
@@ -156,7 +166,7 @@ public class UserService {
         // Verify user exists before updating
         if (!userRepository.existsById(user.getId())) {
             log.warn("Attempted to update non-existent user with ID: {}", user.getId());
-            throw new IllegalArgumentException("User with ID " + user.getId() + " does not exist");
+            throw ResourceNotFoundException.forUser(user.getId());
         }
         
         User updatedUser = userRepository.save(user);
