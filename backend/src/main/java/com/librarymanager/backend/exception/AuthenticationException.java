@@ -54,13 +54,23 @@ public class AuthenticationException extends BaseLibraryException {
     }
 
     /**
-     * Convenience method to create an AuthenticationException for invalid credentials.
+     * Convenience method to create an AuthenticationException for invalid email.
      * 
      * @param email the email that failed authentication
      * @return AuthenticationException with formatted message
      */
-    public static AuthenticationException invalidCredentials(String email) {
+    public static AuthenticationException invalidEmail(String email) {
         return new AuthenticationException("Invalid credentials for email: " + email);
+    }
+
+     /**
+     * Convenience method to create an AuthenticationException for invalid password.
+     * 
+     * @param password the password that failed authentication
+     * @return AuthenticationException with formatted message
+     */
+    public static AuthenticationException invalidPassword(String password) {
+        return new AuthenticationException("Invalid credentials for password: " + password);
     }
 
     /**

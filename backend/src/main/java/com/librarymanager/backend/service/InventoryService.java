@@ -1,6 +1,8 @@
 package com.librarymanager.backend.service;
 
 import com.librarymanager.backend.entity.Book;
+import com.librarymanager.backend.exception.BusinessRuleViolationException;
+import com.librarymanager.backend.exception.ResourceNotFoundException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -28,18 +30,19 @@ public class InventoryService {
         this.bookCatalogService = bookCatalogService;
     }
 
-     /* Handles book borrowing logic.
+    /**
+     * Handles book borrowing logic.
      * 
      * @param bookId the ID of the book to borrow
      * @return the updated book after borrowing
-     * @throws IllegalArgumentException if book not found
-     * @throws IllegalStateException if book not available
+     * @throws ResourceNotFoundException if book not found
+     * @throws BusinessRuleViolationException if book not available
      */
     public Book borrowBook(Long bookId) {
         log.info("Processing book borrow request for book ID: {}", bookId);
 
         Book book = bookCatalogService.findById(bookId)
-            .orElseThrow(() -> new IllegalArgumentException("Book with ID " + bookId + " not found"));
+            .orElseThrow(() -> ResourceNotFoundException.forBook(bookId));
         
         try {
             // Use domain method from Book entity
@@ -53,7 +56,7 @@ public class InventoryService {
             
         } catch (IllegalStateException e) {
             log.warn("Failed to borrow book '{}' (ID: {}): {}", book.getTitle(), bookId, e.getMessage());
-            throw new IllegalStateException("Book '" + book.getTitle() + "' is not available for borrowing");
+            throw BusinessRuleViolationException.bookNotAvailable(book.getTitle());
         }
     }
 
@@ -62,14 +65,14 @@ public class InventoryService {
      * 
      * @param bookId the ID of the book to return
      * @return the updated book after returning
-     * @throws IllegalArgumentException if book not found
-     * @throws IllegalStateException if cannot return more copies
+     * @throws ResourceNotFoundException if book not found
+     * @throws BusinessRuleViolationException if cannot return more copies
      */
     public Book returnBook(Long bookId) {
         log.info("Processing book return request for book ID: {}", bookId);
         
         Book book = bookCatalogService.findById(bookId)
-            .orElseThrow(() -> new IllegalArgumentException("Book with ID " + bookId + " not found"));
+            .orElseThrow(() -> ResourceNotFoundException.forBook(bookId));
         
         try {
             // Use domain method from Book entity
@@ -83,7 +86,7 @@ public class InventoryService {
             
         } catch (IllegalStateException e) {
             log.warn("Failed to return book '{}' (ID: {}): {}", book.getTitle(), bookId, e.getMessage());
-            throw new IllegalStateException("Cannot return book '" + book.getTitle() + "': " + e.getMessage());
+            throw BusinessRuleViolationException.cannotReturnAllCopiesAvailable(book.getTitle());
         }
     }
 }
