@@ -4,6 +4,7 @@ import com.librarymanager.backend.entity.User;
 import com.librarymanager.backend.entity.UserRole;
 import com.librarymanager.backend.repository.UserRepository;
 import com.librarymanager.backend.testutil.TestDataFactory;
+import com.librarymanager.backend.exception.ResourceNotFoundException;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -75,11 +76,11 @@ class UserServiceTest {
         when(userRepository.findById(userId)).thenReturn(Optional.of(testUser));
 
         // When
-        Optional<User> result = userService.findById(userId);
+        User result = userService.findById(userId);
 
         // Then
-        assertThat(result).isPresent();
-        assertThat(result.get().getEmail()).isEqualTo("john.doe@example.com");
+        assertThat(result).isNotNull();
+        assertThat(result.getEmail()).isEqualTo("john.doe@example.com");
         verify(userRepository).findById(userId);
     }
 
@@ -90,11 +91,10 @@ class UserServiceTest {
         Long userId = 999L;
         when(userRepository.findById(userId)).thenReturn(Optional.empty());
 
-        // When
-        Optional<User> result = userService.findById(userId);
-
-        // Then
-        assertThat(result).isEmpty();
+        // When & Then
+        assertThatThrownBy(() -> userService.findById(userId))
+            .isInstanceOf(ResourceNotFoundException.class)
+            .hasMessageContaining("User with ID 999 not found");
         verify(userRepository).findById(userId);
     }
 
@@ -165,8 +165,8 @@ class UserServiceTest {
 
         // When & Then
         assertThatThrownBy(() -> userService.updateUser(testUser))
-            .isInstanceOf(IllegalArgumentException.class)
-            .hasMessageContaining("User with ID 999 does not exist");
+            .isInstanceOf(ResourceNotFoundException.class)
+            .hasMessageContaining("User with ID 999 not found");
 
         verify(userRepository).existsById(999L);
         verify(userRepository, never()).save(any());

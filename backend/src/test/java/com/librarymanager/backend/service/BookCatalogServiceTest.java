@@ -2,6 +2,9 @@ package com.librarymanager.backend.service;
 
 import com.librarymanager.backend.entity.Book;
 import com.librarymanager.backend.entity.BookGenre;
+import com.librarymanager.backend.exception.BusinessRuleViolationException;
+import com.librarymanager.backend.exception.DuplicateResourceException;
+import com.librarymanager.backend.exception.ResourceNotFoundException;
 import com.librarymanager.backend.repository.BookRepository;
 import com.librarymanager.backend.testutil.TestDataFactory;
 
@@ -100,7 +103,7 @@ class BookCatalogServiceTest {
 
         // When & Then
         assertThatThrownBy(() -> bookCatalogService.createBook(validBook))
-            .isInstanceOf(IllegalArgumentException.class)
+            .isInstanceOf(DuplicateResourceException.class)
             .hasMessageContaining("Book with ISBN 978-0134685991 already exists");
 
         verify(bookRepository).findByIsbn(validBook.getIsbn());
@@ -119,7 +122,7 @@ class BookCatalogServiceTest {
 
         // When & Then
         assertThatThrownBy(() -> bookCatalogService.createBook(invalidBook))
-            .isInstanceOf(IllegalArgumentException.class)
+            .isInstanceOf(BusinessRuleViolationException.class)
             .hasMessageContaining("Total copies must be at least 1");
 
         verify(bookRepository, never()).save(any());
@@ -155,8 +158,8 @@ class BookCatalogServiceTest {
 
         // When & Then
         assertThatThrownBy(() -> bookCatalogService.updateBook(validBook))
-            .isInstanceOf(IllegalArgumentException.class)
-            .hasMessageContaining("Book with ID 999 does not exist");
+            .isInstanceOf(ResourceNotFoundException.class)
+            .hasMessageContaining("Book with ID 999 not found");
 
         verify(bookRepository).findById(999L);
         verify(bookRepository, never()).save(any());
@@ -190,8 +193,8 @@ class BookCatalogServiceTest {
 
         // When & Then
         assertThatThrownBy(() -> bookCatalogService.deleteBook(bookId))
-            .isInstanceOf(IllegalStateException.class)
-            .hasMessageContaining("Cannot delete book with borrowed copies");
+            .isInstanceOf(BusinessRuleViolationException.class)
+            .hasMessageContaining("Cannot delete book '" + bookWithBorrowedCopies.getTitle() + "'");
 
         verify(bookRepository).findById(bookId);
         verify(bookRepository, never()).deleteById(any());
