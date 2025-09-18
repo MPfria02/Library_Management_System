@@ -74,24 +74,28 @@ public class BookCatalogService {
      * Retrieves a book by its ID.
      * 
      * @param id the book ID
-     * @return Optional containing the book if found
+     * @return the book if found
+     * @throws ResourceNotFoundException if book not found
      */
     @Transactional(readOnly = true)
-    public Optional<Book> findById(Long id) {
+    public Book findById(Long id) {
         log.debug("Finding book by ID: {}", id);
-        return bookRepository.findById(id);
+        return bookRepository.findById(id)
+            .orElseThrow(() -> ResourceNotFoundException.forBook(id));
     }
 
     /**
      * Retrieves a book by its ISBN.
      * 
      * @param isbn the book ISBN
-     * @return Optional containing the book if found
+     * @return the book if found
+     * @throws ResourceNotFoundException if book not found
      */
     @Transactional(readOnly = true)
-    public Optional<Book> findByIsbn(String isbn) {
+    public Book findByIsbn(String isbn) {
         log.debug("Finding book by ISBN: {}", isbn);
-        return bookRepository.findByIsbn(isbn);
+        return bookRepository.findByIsbn(isbn)
+            .orElseThrow(() -> ResourceNotFoundException.forBookByIsbn(isbn));
     }
 
     /**

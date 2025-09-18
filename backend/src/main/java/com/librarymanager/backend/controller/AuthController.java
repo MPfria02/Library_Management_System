@@ -12,7 +12,14 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.*;
+
+import com.librarymanager.backend.security.CustomUserDetails;
+import com.librarymanager.backend.security.JwtTokenService;
 
 /**
  * Authentication controller exposing endpoints for user registration and login.
@@ -31,10 +38,19 @@ public class AuthController {
 
     private final UserService userService;
     private final UserMapper userMapper;
+    private final AuthenticationManager authenticationManager;
+    private final JwtTokenService jwtTokenService;
+    private final PasswordEncoder passwordEncoder;
 
-    public AuthController(UserService userService, UserMapper userMapper) {
+    public AuthController(UserService userService, UserMapper userMapper,
+                          AuthenticationManager authenticationManager,
+                          JwtTokenService jwtTokenService,
+                          PasswordEncoder passwordEncoder) {
         this.userService = userService;
         this.userMapper = userMapper;
+        this.authenticationManager = authenticationManager;
+        this.jwtTokenService = jwtTokenService;
+        this.passwordEncoder = passwordEncoder;
     }
 
     /**
@@ -45,11 +61,9 @@ public class AuthController {
     public ResponseEntity<UserResponse> register(@Valid @RequestBody UserRegistrationRequest request) {
         log.info("Registering user with email: {}", request.getEmail());
 
-        if (userService.existsByEmail(request.getEmail())) {
-            return ResponseEntity.status(HttpStatus.CONFLICT).build();
-        }
-
         User user = userMapper.toEntity(request);
+        // Encode the raw password before persisting
+        user.setPassword(passwordEncoder.encode(request.getPassword()));
         User saved = userService.createUser(user);
         UserResponse response = userMapper.toResponse(saved);
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
@@ -57,24 +71,31 @@ public class AuthController {
 
     /**
      * Authenticates a user and returns an auth token response.
-     * Note: Token generation is not yet implemented in this project; this returns a stub.
      */
     @PostMapping("/login")
     public ResponseEntity<AuthResponse> login(@Valid @RequestBody LoginRequest request) {
-        log.info("Login attempt for email: {}", request.getEmail());
+        log.debug("Login attempt for email: {}", request.getEmail());
 
-        return userService.authenticate(request.getEmail(), request.getPassword())
-            .map(u -> {
-                AuthResponse auth = AuthResponse.builder()
-                    .token("stub-token")
-                    .email(u.getEmail())
-                    .role(u.getRole())
-                    .expiresIn(3600L)
-                    .build();
-                return ResponseEntity.ok(auth);
-            })
-            .orElseGet(() -> ResponseEntity.status(HttpStatus.UNAUTHORIZED).build());
+        // Will throw BadCredentialsException on invalid login -> handled by RestAuthenticationEntryPoint
+        Authentication authentication = authenticationManager.authenticate(
+            new UsernamePasswordAuthenticationToken(request.getEmail(), request.getPassword())
+        );
+
+        CustomUserDetails userDetails = (CustomUserDetails) authentication.getPrincipal();
+        String token = jwtTokenService.generateToken(userDetails);
+        long timeInMillis = jwtTokenService.extractExpiration(token).getTime();
+
+
+        AuthResponse auth = AuthResponse.builder()
+            .token(token)
+            .email(userDetails.getEmail())
+            .role(userDetails.getRole())
+            .expiresIn(timeInMillis)
+            .build();
+
+        return ResponseEntity.ok(auth);
     }
+
 }
 
 

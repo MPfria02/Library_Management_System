@@ -59,15 +59,9 @@ public class BookStatisticsController {
     public ResponseEntity<Long> getTotalBookCount() {
         log.debug("Retrieving total book count");
         
-        try {
-            long totalBooks = bookStatisticsService.countAllBooks();
-            log.debug("Total books count: {}", totalBooks);
-            return ResponseEntity.ok(totalBooks);
-            
-        } catch (Exception e) {
-            log.error("Error retrieving total book count", e);
-            return ResponseEntity.internalServerError().build();
-        }
+        long totalBooks = bookStatisticsService.countAllBooks();
+        log.debug("Total books count: {}", totalBooks);
+        return ResponseEntity.ok(totalBooks);
     }
 
     /**
@@ -79,15 +73,9 @@ public class BookStatisticsController {
     public ResponseEntity<Long> getAvailableBookCount() {
         log.debug("Retrieving available book count");
         
-        try {
-            long availableBooks = bookStatisticsService.countAvailableBooks();
-            log.debug("Available books count: {}", availableBooks);
-            return ResponseEntity.ok(availableBooks);
-            
-        } catch (Exception e) {
-            log.error("Error retrieving available book count", e);
-            return ResponseEntity.internalServerError().build();
-        }
+        long availableBooks = bookStatisticsService.countAvailableBooks();
+        log.debug("Available books count: {}", availableBooks);
+        return ResponseEntity.ok(availableBooks);
     }
 
     /**
@@ -99,19 +87,13 @@ public class BookStatisticsController {
     public ResponseEntity<List<BookResponse>> getBooksWithBorrowedCopies() {
         log.debug("Retrieving books with borrowed copies");
         
-        try {
-            List<Book> booksWithBorrowedCopies = bookStatisticsService.getBooksWithBorrowedCopies();
-            List<BookResponse> response = booksWithBorrowedCopies.stream()
-                .map(bookMapper::toResponse)
-                .collect(Collectors.toList());
-            
-            log.debug("Found {} books with borrowed copies", response.size());
-            return ResponseEntity.ok(response);
-            
-        } catch (Exception e) {
-            log.error("Error retrieving books with borrowed copies", e);
-            return ResponseEntity.internalServerError().build();
-        }
+        List<Book> booksWithBorrowedCopies = bookStatisticsService.getBooksWithBorrowedCopies();
+        List<BookResponse> response = booksWithBorrowedCopies.stream()
+            .map(bookMapper::toResponse)
+            .collect(Collectors.toList());
+        
+        log.debug("Found {} books with borrowed copies", response.size());
+        return ResponseEntity.ok(response);
     }
 
     /**
@@ -124,15 +106,9 @@ public class BookStatisticsController {
     public ResponseEntity<Long> getAvailableBooksCountByGenre(@PathVariable BookGenre genre) {
         log.debug("Retrieving available books count for genre: {}", genre);
         
-        try {
-            long count = bookStatisticsService.countAvailableBooksByGenre(genre);
-            log.debug("Available books count for genre {}: {}", genre, count);
-            return ResponseEntity.ok(count);
-            
-        } catch (Exception e) {
-            log.error("Error retrieving available books count for genre: {}", genre, e);
-            return ResponseEntity.internalServerError().build();
-        }
+        long count = bookStatisticsService.countAvailableBooksByGenre(genre);
+        log.debug("Available books count for genre {}: {}", genre, count);
+        return ResponseEntity.ok(count);
     }
 
 
@@ -145,22 +121,16 @@ public class BookStatisticsController {
     public ResponseEntity<Double> getAvailabilityPercentage() {
         log.debug("Retrieving book availability percentage");
         
-        try {
-            long totalBooks = bookStatisticsService.countAllBooks();
-            long availableBooks = bookStatisticsService.countAvailableBooks();
-            
-            double availabilityPercentage = totalBooks > 0 ? 
-                (double) availableBooks / totalBooks * 100 : 0.0;
-            
-            // Round to 2 decimal places
-            double roundedPercentage = Math.round(availabilityPercentage * 100.0) / 100.0;
-            
-            log.debug("Book availability percentage: {}%", roundedPercentage);
-            return ResponseEntity.ok(roundedPercentage);
-            
-        } catch (Exception e) {
-            log.error("Error retrieving availability percentage", e);
-            return ResponseEntity.internalServerError().build();
-        }
+        long totalBooks = bookStatisticsService.countAllBooks();
+        long availableBooks = bookStatisticsService.countAvailableBooks();
+        
+        double availabilityPercentage = totalBooks > 0 ? 
+            (double) availableBooks / totalBooks * 100 : 0.0;
+        
+        // Round to 2 decimal places
+        double roundedPercentage = Math.round(availabilityPercentage * 100.0) / 100.0;
+        
+        log.debug("Book availability percentage: {}%", roundedPercentage);
+        return ResponseEntity.ok(roundedPercentage);
     }
 }
