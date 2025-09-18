@@ -2,7 +2,6 @@ package com.librarymanager.backend.service;
 
 import com.librarymanager.backend.entity.User;
 import com.librarymanager.backend.entity.UserRole;
-import com.librarymanager.backend.exception.AuthenticationException;
 import com.librarymanager.backend.exception.DuplicateResourceException;
 import com.librarymanager.backend.exception.ResourceNotFoundException;
 import com.librarymanager.backend.repository.UserRepository;
@@ -46,12 +45,14 @@ public class UserService {
      * Retrieves a user by their ID.
      * 
      * @param id the user ID
-     * @return Optional containing the user if found
+     * @return the user if found
+     * @throws ResourceNotFoundException if user not found
      */
     @Transactional(readOnly = true)
-    public Optional<User> findById(Long id) {
+    public User findById(Long id) {
         log.debug("Finding user by ID: {}", id);
-        return userRepository.findById(id);
+        return userRepository.findById(id)
+            .orElseThrow(() -> ResourceNotFoundException.forUser(id));
     }
 
     /**
@@ -115,29 +116,6 @@ public class UserService {
     public boolean existsByEmail(String email) {
         log.debug("Checking if user exists with email: {}", email);
         return userRepository.existsByEmail(email);
-    }
-
-    /**
-     * Authenticates a user by email and password.
-     *
-     * Note: Plain-text password comparison is used here because
-     * password hashing/security layer is not implemented yet.
-     *
-     * @param email user email
-     * @param password user password
-     * @return Optional user when credentials are valid
-     * @throws AuthenticationException when email or password is invalid
-     */
-    @Transactional(readOnly = true)
-    public Optional<User> authenticate(String email, String password) {
-        log.debug("Authenticating user by email: {}", email);
-        if (email == null || !findByEmail(email).isPresent()) {
-            throw AuthenticationException.invalidEmail(email);
-        }
-        if (password == null || !findByEmail(email).get().getPassword().equals(password)) {
-            throw AuthenticationException.invalidPassword(password);
-        }
-        return findByEmail(email);
     }
 
     /**

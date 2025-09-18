@@ -6,12 +6,11 @@ import com.librarymanager.backend.entity.UserRole;
 import com.librarymanager.backend.mapper.UserMapper;
 import com.librarymanager.backend.service.UserService;
 import jakarta.validation.Valid;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.security.access.prepost.PreAuthorize;
 
 import java.util.List;
-import java.util.Optional;
 import java.util.stream.Collectors;
 
 /**
@@ -32,15 +31,15 @@ public class UserController {
     }
 
     @GetMapping("/{id}")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<UserResponse> getById(@PathVariable Long id) {
-        Optional<User> userOpt = userService.findById(id);
-        return userOpt
-            .map(userMapper::toResponse)
-            .map(ResponseEntity::ok)
-            .orElseGet(() -> ResponseEntity.status(HttpStatus.NOT_FOUND).build());
+        User user = userService.findById(id);
+        UserResponse response = userMapper.toResponse(user);
+        return ResponseEntity.ok(response);
     }
 
     @GetMapping
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<List<UserResponse>> getMembers() {
         List<UserResponse> users = userService.findAllMembers().stream()
             .map(userMapper::toResponse)
@@ -49,6 +48,7 @@ public class UserController {
     }
 
     @GetMapping("/search")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<List<UserResponse>> search(
         @RequestParam(required = false) String firstName,
         @RequestParam(required = false) String lastName
@@ -60,6 +60,7 @@ public class UserController {
     }
 
     @GetMapping("/role/{role}")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<List<UserResponse>> findByRole(@PathVariable UserRole role) {
         List<UserResponse> users = userService.findUsersByRole(role).stream()
             .map(userMapper::toResponse)
@@ -68,26 +69,25 @@ public class UserController {
     }
 
     @PutMapping("/{id}")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<UserResponse> update(@PathVariable Long id, @Valid @RequestBody UserResponse update) {
-        Optional<User> existing = userService.findById(id);
-        if (existing.isEmpty()) {
-            return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
-        }
-        User toUpdate = existing.get();
-        toUpdate.setFirstName(update.getFirstName());
-        toUpdate.setLastName(update.getLastName());
-        toUpdate.setPhone(update.getPhone());
-        toUpdate.setRole(update.getRole());
-        User saved = userService.updateUser(toUpdate);
+        User existing = userService.findById(id);
+        existing.setFirstName(update.getFirstName());
+        existing.setLastName(update.getLastName());
+        existing.setPhone(update.getPhone());
+        existing.setRole(update.getRole());
+        User saved = userService.updateUser(existing);
         return ResponseEntity.ok(userMapper.toResponse(saved));
     }
 
     @GetMapping("/count")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<Long> countAll() {
         return ResponseEntity.ok(userService.countAllUsers());
     }
 
     @GetMapping("/count/{role}")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<Long> countByRole(@PathVariable UserRole role) {
         return ResponseEntity.ok(userService.countUsersByRole(role));
     }

@@ -2,6 +2,7 @@ package com.librarymanager.backend.security;
 
 import com.librarymanager.backend.entity.User;
 import com.librarymanager.backend.entity.UserRole;
+
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
@@ -63,6 +64,14 @@ public class CustomUserDetails implements UserDetails {
     @Override
     public boolean isEnabled() {
         return true;
+    }
+
+    public UserRole getRole() {
+        return this.role;
+    }
+
+    public String getEmail() {
+        return this.email;
     }
 }
 

@@ -41,8 +41,7 @@ public class InventoryService {
     public Book borrowBook(Long bookId) {
         log.info("Processing book borrow request for book ID: {}", bookId);
 
-        Book book = bookCatalogService.findById(bookId)
-            .orElseThrow(() -> ResourceNotFoundException.forBook(bookId));
+        Book book = bookCatalogService.findById(bookId);
         
         try {
             // Use domain method from Book entity
@@ -71,8 +70,7 @@ public class InventoryService {
     public Book returnBook(Long bookId) {
         log.info("Processing book return request for book ID: {}", bookId);
         
-        Book book = bookCatalogService.findById(bookId)
-            .orElseThrow(() -> ResourceNotFoundException.forBook(bookId));
+        Book book = bookCatalogService.findById(bookId);
         
         try {
             // Use domain method from Book entity

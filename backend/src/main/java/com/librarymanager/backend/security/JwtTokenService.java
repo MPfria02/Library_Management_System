@@ -1,6 +1,5 @@
 package com.librarymanager.backend.security;
 
-import com.librarymanager.backend.entity.User;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.SignatureAlgorithm;
@@ -33,7 +32,7 @@ public class JwtTokenService {
     @Value("${app.jwt.expiration}")
     private long jwtExpirationMs;
 
-    public String generateToken(User user) {
+    public String generateToken(CustomUserDetails user) {
         Map<String, Object> claims = new HashMap<>();
         claims.put("role", user.getRole().name());
         return buildToken(claims, user.getEmail());

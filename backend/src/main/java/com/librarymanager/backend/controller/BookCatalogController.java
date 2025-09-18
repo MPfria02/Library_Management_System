@@ -16,9 +16,9 @@ import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.security.access.prepost.PreAuthorize;
 
 import java.util.List;
-import java.util.Optional;
 import java.util.stream.Collectors;
 
 /**
@@ -73,22 +73,17 @@ public class BookCatalogController {
      * @return ResponseEntity with created book or error status
      */
     @PostMapping
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<BookResponse> createBook(@Valid @RequestBody BookCreationRequest request) {
         log.info("Creating new book with ISBN: {}", request.getIsbn());
         
-        try {
-            Book book = bookMapper.toEntity(request);
-            Book createdBook = bookCatalogService.createBook(book);
-            BookResponse response = bookMapper.toResponse(createdBook);
-            
-            log.info("Book created successfully with ID: {} and title: '{}'", 
-                createdBook.getId(), createdBook.getTitle());
-            return ResponseEntity.status(HttpStatus.CREATED).body(response);
-            
-        } catch (IllegalArgumentException e) {
-            log.warn("Failed to create book: {}", e.getMessage());
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST).build();
-        }
+        Book book = bookMapper.toEntity(request);
+        Book createdBook = bookCatalogService.createBook(book);
+        BookResponse response = bookMapper.toResponse(createdBook);
+        
+        log.info("Book created successfully with ID: {} and title: '{}'", 
+            createdBook.getId(), createdBook.getTitle());
+        return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 
     /**
@@ -101,14 +96,9 @@ public class BookCatalogController {
     public ResponseEntity<BookResponse> getBookById(@PathVariable Long id) {
         log.debug("Retrieving book by ID: {}", id);
         
-        Optional<Book> bookOpt = bookCatalogService.findById(id);
-        return bookOpt
-            .map(bookMapper::toResponse)
-            .map(ResponseEntity::ok)
-            .orElseGet(() -> {
-                log.debug("Book not found with ID: {}", id);
-                return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
-            });
+        Book book = bookCatalogService.findById(id);
+        BookResponse response = bookMapper.toResponse(book);
+        return ResponseEntity.ok(response);
     }
 
     /**
@@ -121,14 +111,9 @@ public class BookCatalogController {
     public ResponseEntity<BookResponse> getBookByIsbn(@PathVariable String isbn) {
         log.debug("Retrieving book by ISBN: {}", isbn);
         
-        Optional<Book> bookOpt = bookCatalogService.findByIsbn(isbn);
-        return bookOpt
-            .map(bookMapper::toResponse)
-            .map(ResponseEntity::ok)
-            .orElseGet(() -> {
-                log.debug("Book not found with ISBN: {}", isbn);
-                return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
-            });
+        Book book = bookCatalogService.findByIsbn(isbn);
+        BookResponse response = bookMapper.toResponse(book);
+        return ResponseEntity.ok(response);
     }
 
     /**
@@ -139,25 +124,19 @@ public class BookCatalogController {
      * @return ResponseEntity with updated book or error status
      */
     @PutMapping("/{id}")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<BookResponse> updateBook(@PathVariable Long id, 
                                                   @Valid @RequestBody BookCreationRequest request) {
         log.info("Updating book with ID: {}", id);
         
-        try {
-            // Create book entity from request and set the ID
-            Book book = bookMapper.toEntity(request);
-            book.setId(id);
-            
-            Book updatedBook = bookCatalogService.updateBook(book);
-            BookResponse response = bookMapper.toResponse(updatedBook);
-            
-            log.info("Book updated successfully: {}", updatedBook.getTitle());
-            return ResponseEntity.ok(response);
-            
-        } catch (IllegalArgumentException e) {
-            log.warn("Failed to update book with ID {}: {}", id, e.getMessage());
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST).build();
-        }
+        Book book = bookMapper.toEntity(request);
+        book.setId(id);
+        
+        Book updatedBook = bookCatalogService.updateBook(book);
+        BookResponse response = bookMapper.toResponse(updatedBook);
+        
+        log.info("Book updated successfully: {}", updatedBook.getTitle());
+        return ResponseEntity.ok(response);
     }
 
     /**
@@ -167,22 +146,13 @@ public class BookCatalogController {
      * @return ResponseEntity with appropriate status
      */
     @DeleteMapping("/{id}")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<Void> deleteBook(@PathVariable Long id) {
         log.info("Deleting book with ID: {}", id);
         
-        try {
-            bookCatalogService.deleteBook(id);
-            log.info("Book deleted successfully with ID: {}", id);
-            return ResponseEntity.noContent().build();
-            
-        } catch (IllegalArgumentException e) {
-            log.warn("Failed to delete book with ID {}: {}", id, e.getMessage());
-            return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
-            
-        } catch (IllegalStateException e) {
-            log.warn("Cannot delete book with ID {}: {}", id, e.getMessage());
-            return ResponseEntity.status(HttpStatus.CONFLICT).build();
-        }
+        bookCatalogService.deleteBook(id);
+        log.info("Book deleted successfully with ID: {}", id);
+        return ResponseEntity.noContent().build();
     }
 
     // ========== Search and Filtering Operations ==========
