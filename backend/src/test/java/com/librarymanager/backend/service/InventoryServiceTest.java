@@ -3,6 +3,8 @@ package com.librarymanager.backend.service;
 import com.librarymanager.backend.entity.Book;
 import com.librarymanager.backend.entity.BookGenre;
 import com.librarymanager.backend.testutil.TestDataFactory;
+import com.librarymanager.backend.exception.BusinessRuleViolationException;
+import com.librarymanager.backend.exception.ResourceNotFoundException;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -13,7 +15,6 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.time.LocalDate;
-import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
@@ -92,7 +93,7 @@ class InventoryServiceTest {
             availableBook.getGenre(), 5, 2); // Decremented by 1
         expectedUpdatedBook.setId(1L);
 
-        when(bookCatalogService.findById(bookId)).thenReturn(Optional.of(availableBook));
+        when(bookCatalogService.findById(bookId)).thenReturn(availableBook);
         when(bookCatalogService.updateBook(any(Book.class))).thenReturn(expectedUpdatedBook);
 
         // When
@@ -118,7 +119,7 @@ class InventoryServiceTest {
             1, 0); // Last copy borrowed
         expectedUpdatedBook.setId(3L); 
 
-        when(bookCatalogService.findById(bookId)).thenReturn(Optional.of(singleCopyBook));
+        when(bookCatalogService.findById(bookId)).thenReturn(singleCopyBook);
         when(bookCatalogService.updateBook(any(Book.class))).thenReturn(expectedUpdatedBook);
 
         // When
@@ -137,11 +138,11 @@ class InventoryServiceTest {
     void borrowBook_BookNotFound_ThrowsException() {
         // Given
         Long bookId = 999L;
-        when(bookCatalogService.findById(bookId)).thenReturn(Optional.empty());
+        when(bookCatalogService.findById(bookId)).thenThrow(ResourceNotFoundException.forBook(bookId));
 
         // When & Then
         assertThatThrownBy(() -> inventoryService.borrowBook(bookId))
-            .isInstanceOf(IllegalArgumentException.class)
+            .isInstanceOf(ResourceNotFoundException.class)
             .hasMessageContaining("Book with ID 999 not found");
 
         verify(bookCatalogService).findById(bookId);
@@ -153,12 +154,12 @@ class InventoryServiceTest {
     void borrowBook_BookNotAvailable_ThrowsException() {
         // Given
         Long bookId = 2L;
-        when(bookCatalogService.findById(bookId)).thenReturn(Optional.of(unavailableBook));
+        when(bookCatalogService.findById(bookId)).thenReturn(unavailableBook);
 
         // When & Then
         assertThatThrownBy(() -> inventoryService.borrowBook(bookId))
-            .isInstanceOf(IllegalStateException.class)
-            .hasMessageContaining("Clean Code' is not available for borrowing");
+            .isInstanceOf(BusinessRuleViolationException.class)
+            .hasMessageContaining("Book 'Clean Code' is not available for borrowing");
 
         verify(bookCatalogService).findById(bookId);
         verify(bookCatalogService, never()).updateBook(any());
@@ -180,7 +181,7 @@ class InventoryServiceTest {
             availableBook.getDescription(), availableBook.getPublicationDate(), availableBook.getGenre(), 5, 3); // Incremented by 1
         expectedUpdatedBook.setId(1L);
 
-        when(bookCatalogService.findById(bookId)).thenReturn(Optional.of(bookWithBorrowedCopies));
+        when(bookCatalogService.findById(bookId)).thenReturn(bookWithBorrowedCopies);
         when(bookCatalogService.updateBook(any(Book.class))).thenReturn(expectedUpdatedBook);
 
         // When
@@ -200,11 +201,11 @@ class InventoryServiceTest {
     void returnBook_BookNotFound_ThrowsException() {
         // Given
         Long bookId = 999L;
-        when(bookCatalogService.findById(bookId)).thenReturn(Optional.empty());
+        when(bookCatalogService.findById(bookId)).thenThrow(ResourceNotFoundException.forBook(bookId));
 
         // When & Then
         assertThatThrownBy(() -> inventoryService.returnBook(bookId))
-            .isInstanceOf(IllegalArgumentException.class)
+            .isInstanceOf(ResourceNotFoundException.class)
             .hasMessageContaining("Book with ID 999 not found");
 
         verify(bookCatalogService).findById(bookId);
@@ -222,12 +223,12 @@ class InventoryServiceTest {
             availableBook.getDescription(), availableBook.getPublicationDate(), availableBook.getGenre(), 5, 5); // All copies available, none borrowed
         allCopiesAvailable.setId(1L);
 
-        when(bookCatalogService.findById(bookId)).thenReturn(Optional.of(allCopiesAvailable));
+        when(bookCatalogService.findById(bookId)).thenReturn(allCopiesAvailable);
 
         // When & Then
         assertThatThrownBy(() -> inventoryService.returnBook(bookId))
-            .isInstanceOf(IllegalStateException.class)
-            .hasMessageContaining("Cannot return book 'Effective Java'");
+            .isInstanceOf(BusinessRuleViolationException.class)
+            .hasMessageContaining("all copies are already available");
 
         verify(bookCatalogService).findById(bookId);
         verify(bookCatalogService, never()).updateBook(any());
@@ -247,7 +248,7 @@ class InventoryServiceTest {
 
         afterFirstBorrow.setId(1L);
 
-        when(bookCatalogService.findById(bookId)).thenReturn(Optional.of(availableBook));
+        when(bookCatalogService.findById(bookId)).thenReturn(availableBook);
         when(bookCatalogService.updateBook(any(Book.class))).thenReturn(afterFirstBorrow);
 
         // When
@@ -275,7 +276,7 @@ class InventoryServiceTest {
             availableBook.getDescription(), availableBook.getPublicationDate(), availableBook.getGenre(), 5, 3); // Incremented by 1
         afterReturn.setId(1L);
 
-        when(bookCatalogService.findById(bookId)).thenReturn(Optional.of(heavilyBorrowedBook));
+        when(bookCatalogService.findById(bookId)).thenReturn(heavilyBorrowedBook);
         when(bookCatalogService.updateBook(any(Book.class))).thenReturn(afterReturn);
 
         // When
