@@ -11,6 +11,7 @@ import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.MissingServletRequestParameterException;
+import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.web.bind.annotation.ControllerAdvice;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
@@ -138,25 +139,24 @@ public class GlobalExceptionHandler {
     }
 
     /**
-     * Handles AuthenticationException.
+     * Handles BadCredentialsException from Spring Security.
      * 
-     * @param ex the AuthenticationException
+     * @param ex the BadCredentialsException
      * @param request the HTTP request
      * @return ResponseEntity with error response
      */
-    @ExceptionHandler(AuthenticationException.class)
-    public ResponseEntity<ErrorResponse> handleAuthenticationException(
-            AuthenticationException ex, HttpServletRequest request) {
+    @ExceptionHandler(BadCredentialsException.class)
+    public ResponseEntity<ErrorResponse> handleBadCredentialsException(
+            BadCredentialsException ex, HttpServletRequest request) {
         
-        log.warn("Authentication failed: {} - Path: {}", ex.getMessage(), request.getRequestURI());
+        log.warn("Bad credentials: {} - Path: {}", ex.getMessage(), request.getRequestURI());
         
         ErrorResponse errorResponse = ErrorResponse.builder()
             .status(HttpStatus.UNAUTHORIZED.value())
             .error(HttpStatus.UNAUTHORIZED.getReasonPhrase())
-            .message(ex.getMessage())
+            .message("Invalid email or password")
             .path(request.getRequestURI())
-            .errorCode(ex.getErrorCode())
-            .details(ex.getDetails())
+            .errorCode("AUTHENTICATION_FAILED")
             .build();
 
         return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(errorResponse);
