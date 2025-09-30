@@ -65,14 +65,13 @@ public interface BookRepository extends JpaRepository<Book, Long> {
      * @return page of books matching criteria
      */
     @Query("""
-            SELECT b FROM Book b
-            WHERE (:searchTerm IS NULL OR 
-                   LOWER(b.title) LIKE LOWER(CONCAT('%', :searchTerm, '%')) OR
-                   LOWER(b.author) LIKE LOWER(CONCAT('%', :searchTerm, '%')))
-              AND (:genre IS NULL OR b.genre = :genre)
-              AND (:availableOnly = false OR b.availableCopies > 0)
-            ORDER BY b.title
-            """)
+        SELECT b FROM Book b
+        WHERE (:searchTerm IS NULL OR
+            LOWER(CAST(b.title AS string)) LIKE LOWER(CONCAT('%', CAST(:searchTerm AS string), '%')) OR
+            LOWER(CAST(b.author AS string)) LIKE LOWER(CONCAT('%', CAST(:searchTerm AS string), '%')))
+        AND (:genre IS NULL OR b.genre = :genre)
+        AND (:availableOnly = false OR b.availableCopies > 0)
+    """)
     Page<Book> findBooksWithFilters(
             @Param("searchTerm") String searchTerm,
             @Param("genre") BookGenre genre,
