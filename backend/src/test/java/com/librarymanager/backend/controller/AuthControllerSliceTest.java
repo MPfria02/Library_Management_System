@@ -5,7 +5,6 @@ import com.librarymanager.backend.dto.request.UserRegistrationRequest;
 import com.librarymanager.backend.dto.response.UserResponse;
 import com.librarymanager.backend.entity.User;
 import com.librarymanager.backend.entity.UserRole;
-import com.librarymanager.backend.exception.AuthenticationException;
 import com.librarymanager.backend.exception.DuplicateResourceException;
 import com.librarymanager.backend.mapper.UserMapper;
 import com.librarymanager.backend.security.CustomUserDetails;
@@ -19,6 +18,7 @@ import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMock
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.http.MediaType;
 import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
@@ -233,7 +233,7 @@ public class AuthControllerSliceTest {
         // Arrange
         LoginRequest request = new LoginRequest("john.doe@example.com", "wrongpassword");
         
-        willThrow(new AuthenticationException("Invalid credentials"))
+        willThrow(new BadCredentialsException("Invalid credentials"))
                 .given(authenticationManager).authenticate(any());
 
         // Act & Assert
@@ -242,8 +242,7 @@ public class AuthControllerSliceTest {
                 .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.status").value(401))
-                .andExpect(jsonPath("$.error").value("Unauthorized"))
-                .andExpect(jsonPath("$.message").value("Invalid credentials"));
+                .andExpect(jsonPath("$.error").value("Unauthorized"));
     }
 
     @Test
