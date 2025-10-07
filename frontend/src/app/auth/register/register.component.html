@@ -1,0 +1,43 @@
+<mat-card class="register-card">
+  <form [formGroup]="registerForm" (ngSubmit)="onSubmit()">
+    <h2>Register</h2>
+    <mat-form-field appearance="outline" class="full-width">
+      <mat-label>Email</mat-label>
+      <input matInput formControlName="email" type="email" autocomplete="email" required />
+      <mat-error *ngIf="email?.hasError('required')">Email is required</mat-error>
+      <mat-error *ngIf="email?.hasError('email') && !email?.hasError('required')">Enter a valid email</mat-error>
+    </mat-form-field>
+
+    <mat-form-field appearance="outline" class="full-width">
+      <mat-label>Password</mat-label>
+      <input matInput formControlName="password" type="password" autocomplete="new-password" required minlength="6" />
+      <mat-error *ngIf="password?.hasError('required')">Password is required</mat-error>
+      <mat-error *ngIf="password?.hasError('minlength') && !password?.hasError('required')">Password must be at least 6 characters</mat-error>
+    </mat-form-field>
+
+    <mat-form-field appearance="outline" class="full-width">
+      <mat-label>First Name</mat-label>
+      <input matInput formControlName="firstName" type="text" required maxlength="50" />
+      <mat-error *ngIf="firstName?.hasError('required')">First name is required</mat-error>
+      <mat-error *ngIf="firstName?.hasError('maxlength')">First name cannot exceed 50 characters</mat-error>
+    </mat-form-field>
+
+    <mat-form-field appearance="outline" class="full-width">
+      <mat-label>Last Name</mat-label>
+      <input matInput formControlName="lastName" type="text" required maxlength="50" />
+      <mat-error *ngIf="lastName?.hasError('required')">Last name is required</mat-error>
+      <mat-error *ngIf="lastName?.hasError('maxlength')">Last name cannot exceed 50 characters</mat-error>
+    </mat-form-field>
+
+    <mat-form-field appearance="outline" class="full-width">
+      <mat-label>Phone</mat-label>
+      <input matInput formControlName="phone" type="tel" autocomplete="tel" maxlength="20" />
+      <mat-error *ngIf="phone?.hasError('required')">Phone is required</mat-error>
+      <mat-error *ngIf="phone?.hasError('maxlength')">Phone cannot exceed 20 characters</mat-error>
+    </mat-form-field>
+
+    <button mat-raised-button color="primary" class="full-width" type="submit" [disabled]="registerForm.invalid || loading()">
+      {{ loading() ? 'Registering...' : 'Register' }}
+    </button>
+  </form>
+</mat-card>
