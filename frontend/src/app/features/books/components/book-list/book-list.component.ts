@@ -7,9 +7,11 @@ import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatIconModule } from '@angular/material/icon';
 import { MatChipsModule } from '@angular/material/chips';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
+import { MatDialog, MatDialogModule } from '@angular/material/dialog';
 import { Router } from '@angular/router';
 import { BookResponse, BookSearchFilters, PageResponse } from '../../models/book.model';
 import { BookService } from '../../services/book.service';
+import { BookFiltersComponent } from '../book-filters/book-filters.component';
 
 @Component({
   selector: 'app-book-list',
@@ -23,6 +25,7 @@ import { BookService } from '../../services/book.service';
     MatIconModule,
     MatChipsModule,
     MatSnackBarModule,
+    MatDialogModule,
   ],
   templateUrl: './book-list.component.html',
   styleUrls: ['./book-list.component.scss'],
@@ -40,6 +43,7 @@ export class BookListComponent implements OnInit {
   private router = inject(Router);
   private snackBar = inject(MatSnackBar);
   private destroyRef = inject(DestroyRef);
+  private dialog = inject(MatDialog);
 
   ngOnInit(): void {
     this.loadBooks();
@@ -74,10 +78,19 @@ export class BookListComponent implements OnInit {
     this.router.navigate(['/books', bookId]);
   }
 
-  /** Placeholder for future filter dialog */
+  /** Filter dialog for filtering books given a certain criteria */
   openFilterDialog(): void {
-    // TODO: Implement in Phase 2.3
-    // eslint-disable-next-line no-console
-    console.log('Filter dialog - coming soon');
+      const dialogRef = this.dialog.open(BookFiltersComponent, {
+        width: '450px',
+        data: this.currentFilters()
+      });
+
+      dialogRef.afterClosed().subscribe((filters: BookSearchFilters | undefined)  => {
+        if (filters !== undefined) {
+          this.currentFilters.set(filters);
+          this.currentPage.set(0);
+          this.loadBooks();
+        }
+      });
   }
 }
