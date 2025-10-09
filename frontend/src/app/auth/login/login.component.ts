@@ -7,7 +7,7 @@ import { MatInputModule } from '@angular/material/input';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
 import { MatSnackBarModule } from '@angular/material/snack-bar';
-import { RouterLink } from '@angular/router';
+import { RouterLink, Router } from '@angular/router';
 import { AuthService } from '../auth.service';
 
 @Component({
@@ -23,13 +23,14 @@ import { AuthService } from '../auth.service';
     MatCardModule,
     ReactiveFormsModule,
     MatSnackBarModule,
-    RouterLink
+    RouterLink,
   ],
 })
 export class LoginComponent {
   private fb = inject(FormBuilder);
   private snackBar = inject(MatSnackBar);
   private authService = inject(AuthService);
+  private router = inject(Router);
 
   loginForm: FormGroup = this.fb.group({
     email: ['', [Validators.required, Validators.email]],
@@ -54,7 +55,7 @@ export class LoginComponent {
     try {
       await this.authService.login(this.loginForm.value);
       this.snackBar.open('Login successful!', 'Close', { duration: 3000 });
-      // this.router.navigate(['/dashboard']); // Uncomment for real navigation
+      this.router.navigate(['/dashboard']);
     } catch (error: any) {
       this.snackBar.open(error.message || 'Login failed', 'Close', { duration: 3000 });
     } finally {
