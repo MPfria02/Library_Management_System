@@ -1,8 +1,8 @@
-import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { ComponentFixture, fakeAsync, flushMicrotasks, TestBed, tick } from '@angular/core/testing';
 import { ReactiveFormsModule } from '@angular/forms';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { NoopAnimationsModule } from '@angular/platform-browser/animations';
-import { provideRouter } from '@angular/router';
+import { provideRouter, Router, Routes } from '@angular/router';
 import { LoginComponent } from './login.component';
 import { AuthService } from '../auth.service';
 
@@ -16,24 +16,25 @@ describe('LoginComponent', () => {
   let fixture: ComponentFixture<LoginComponent>;
   let mockAuthService: jasmine.SpyObj<AuthService>;
   let mockSnackBar: jasmine.SpyObj<MatSnackBar>;
-  
-  beforeEach(async() => {
+  let mockRouter: Router;
+
+  beforeEach(async () => {
     mockAuthService = jasmine.createSpyObj('AuthService', ['login']);
     mockSnackBar = jasmine.createSpyObj('MatSnackBar', ['open']);
-  
+    mockRouter = jasmine.createSpyObj('Router', ['navigate']);
+
     await TestBed.configureTestingModule({
-      imports: [
-        LoginComponent,
-        ReactiveFormsModule,
-        NoopAnimationsModule,
-      ],
+      imports: [LoginComponent, ReactiveFormsModule, NoopAnimationsModule],
       providers: [
         provideRouter([]),
+        { provide: AuthService, useValue: mockAuthService},
       ],
     })
-    .overrideProvider(AuthService, { useValue: mockAuthService })
     .overrideProvider(MatSnackBar, { useValue: mockSnackBar })
     .compileComponents();
+
+    mockRouter = TestBed.inject(Router);
+    spyOn(mockRouter, 'navigate');
 
     fixture = TestBed.createComponent(LoginComponent);
     component = fixture.componentInstance;
@@ -66,70 +67,100 @@ describe('LoginComponent', () => {
     expect(component.loginForm.valid).toBeTrue();
   });
 
-  it('should not submit when form is invalid', async() => {
+  it('should not submit when form is invalid', fakeAsync(() => {
     spyOn(component.loginForm, 'markAllAsTouched');
-    await component.onSubmit();
+    
+    // Form is invalid (no values set)
+    component.onSubmit();
+    tick();
+    
     expect(component.loginForm.markAllAsTouched).toHaveBeenCalled();
     expect(mockAuthService.login).not.toHaveBeenCalled();
     expect(component.loading()).toBeFalse();
-  });
+  }));
 
-  it('should show success snackbar on successful login', async () => {
+  it('should show success snackbar and navigate to dashboard on successful login', fakeAsync(() => {
+    // Setup successful login
     mockAuthService.login.and.returnValue(Promise.resolve());
+    
+    // Set valid form values
     component.loginForm.setValue({
       email: 'test@example.com',
-      password: '123456'
+      password: '123456',
     });
+
+    // Submit form
+    component.onSubmit();
     
-    await component.onSubmit();  
+    // Initially, loading should be true
+    expect(component.loading()).toBeTrue();
     
+    // Wait for all async operations to complete
+    flushMicrotasks();
+    
+    // Verify all expected behaviors
+    expect(mockAuthService.login).toHaveBeenCalledWith({
+      email: 'test@example.com',
+      password: '123456',
+    });
     expect(mockSnackBar.open).toHaveBeenCalledWith(
-      MSG_LOGIN_SUCCESS, 
-      SNACKBAR_ACTION, 
+      MSG_LOGIN_SUCCESS,
+      SNACKBAR_ACTION,
       SNACKBAR_CONFIG
     );
+    expect(mockRouter.navigate).toHaveBeenCalledWith(['/dashboard']);
     expect(component.loading()).toBeFalse();
-  });
+  }));
 
-  it('should show error snackbar on failed login', async () => {
+  it('should show error snackbar on failed login', fakeAsync(() => {
     const error = new Error(MSG_INVALID_EMAIL_OR_PASSWORD);
     mockAuthService.login.and.returnValue(Promise.reject(error));
+    
     component.loginForm.setValue({
       email: 'test@example.com',
-      password: '123456'
+      password: '123456',
     });
+
+    component.onSubmit();
     
-    await component.onSubmit(); 
+    // Initially loading should be true
+    expect(component.loading()).toBeTrue();
     
+    flushMicrotasks();
+
+    expect(mockAuthService.login).toHaveBeenCalledWith({
+      email: 'test@example.com',
+      password: '123456',
+    });
     expect(mockSnackBar.open).toHaveBeenCalledWith(
-      MSG_INVALID_EMAIL_OR_PASSWORD, 
-      SNACKBAR_ACTION, 
+      MSG_INVALID_EMAIL_OR_PASSWORD,
+      SNACKBAR_ACTION,
       SNACKBAR_CONFIG
     );
+    expect(mockRouter.navigate).not.toHaveBeenCalled();
     expect(component.loading()).toBeFalse();
-  });
+  }));
 
-  it('should manage button disabled state', () => {
+  it('should manage button disabled state', fakeAsync(() => {
     const button: HTMLButtonElement = fixture.nativeElement.querySelector('button[type="submit"]');
 
-    // Initially invalid
+    // Initially invalid (form has no values)
+    fixture.detectChanges();
     expect(button.disabled).toBeTrue();
 
     // Valid form
     component.loginForm.setValue({
       email: 'test@example.com',
-      password: '123456'
+      password: '123456',
     });
     fixture.detectChanges();
     expect(button.disabled).toBeFalse();
 
     // Loading state
-    component.loading.set(true);
+    mockAuthService.login.and.returnValue(new Promise(() => {})); // Never resolves
+    component.onSubmit();
     fixture.detectChanges();
     expect(button.disabled).toBeTrue();
-
-    component.loading.set(false);
-    fixture.detectChanges();
-    expect(button.disabled).toBeFalse();
-  });
+    expect(component.loading()).toBeTrue();
+  }));
 });
