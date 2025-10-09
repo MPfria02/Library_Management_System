@@ -1,0 +1,63 @@
+<div class="book-catalog-container">
+  <!-- Header -->
+  <div class="catalog-header">
+    <h1>Library Catalog</h1>
+    <button mat-raised-button color="primary" (click)="openFilterDialog()">
+      <mat-icon>filter_list</mat-icon>
+      Search / Filter
+    </button>
+  </div>
+
+  <!-- Loading Spinner -->
+  <div *ngIf="loading()" class="loading-container">
+    <mat-progress-spinner mode="indeterminate" diameter="50"></mat-progress-spinner>
+    <p>Loading books...</p>
+  </div>
+
+  <!-- Empty State -->
+  <div *ngIf="!loading() && books().length === 0" class="empty-state">
+    <mat-icon class="empty-icon">library_books</mat-icon>
+    <h2>No books found</h2>
+    <p>Try adjusting your search filters.</p>
+  </div>
+
+  <!-- Book Grid -->
+  <div *ngIf="!loading() && books().length > 0" class="book-grid">
+    <mat-card *ngFor="let book of books()" class="book-card">
+      <mat-card-header>
+        <mat-icon mat-card-avatar class="book-icon">menu_book</mat-icon>
+        <mat-card-title>{{ book.title }}</mat-card-title>
+        <mat-card-subtitle>{{ book.author }}</mat-card-subtitle>
+      </mat-card-header>
+
+      <mat-card-content>
+        <mat-chip class="genre-chip">{{ book.genre }}</mat-chip>
+        <p class="availability">
+          <mat-icon
+            [class.available]="book.availableCopies > 0"
+            [class.unavailable]="book.availableCopies === 0"
+          >
+            {{ book.availableCopies > 0 ? 'check_circle' : 'cancel' }}
+          </mat-icon>
+          {{ book.availableCopies }} available
+        </p>
+      </mat-card-content>
+
+      <mat-card-actions>
+        <button mat-button color="primary" (click)="viewBookDetails(book.id)">More Info</button>
+      </mat-card-actions>
+    </mat-card>
+  </div>
+
+  <!-- Pagination -->
+  <mat-paginator
+    *ngIf="!loading() && books().length > 0"
+    [length]="totalElements()"
+    [pageSize]="pageSize"
+    [pageIndex]="currentPage()"
+    [hidePageSize]="true"
+    (page)="onPageChange($event)"
+    showFirstLastButtons
+  >
+  </mat-paginator>
+</div>
