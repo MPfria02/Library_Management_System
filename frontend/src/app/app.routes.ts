@@ -2,6 +2,7 @@ import { Routes } from '@angular/router';
 import { LoginComponent, RegisterComponent } from './auth';
 import { authGuard } from './auth';
 import { BookListComponent } from './features/books/components/book-list/book-list.component';
+import { BookDetailsComponent } from './features/books/components/book-details/book-details.component';
 
 export const routes: Routes = [
   { path: '', redirectTo: '/login', pathMatch: 'full' },
@@ -10,13 +11,14 @@ export const routes: Routes = [
   {
     path: 'dashboard',
     component: BookListComponent,
-    canActivate: [authGuard]
+    canActivate: [authGuard],
+    title: 'Dashboard'
   },
-  // {
-  //   path: 'books/:id',
-  //   // TODO: Implement BookDetailsComponent in Phase 2.4
-  //   component: BookListComponent, // Placeholder until BookDetailsComponent is created
-  //   canActivate: [authGuard]
-  // },
+  {
+    path: 'books/:id',
+    component: BookDetailsComponent,
+    canActivate: [authGuard],
+    title: 'Book Details'
+  },
   { path: '**', redirectTo: '/login' },
 ];
