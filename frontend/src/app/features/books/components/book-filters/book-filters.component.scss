@@ -1,0 +1,28 @@
+.filters-form {
+  min-width: 400px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.full-width {
+  width: 100%;
+}
+
+.actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+@media (max-width: 480px) {
+  .filters-form {
+    min-width: 0;
+  }
+  .actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+}
+
+
