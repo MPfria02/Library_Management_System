@@ -19,6 +19,7 @@ export enum BookGenre {
    * publicationDate is an ISO date string (not a Date object).
    */
   export interface BookResponse {
+    /** Database identifier */
     id: number;
     title: string;
     author: string;
@@ -54,4 +55,33 @@ export enum BookGenre {
     first: boolean;
     last: boolean;
     empty: boolean;
+  }
+
+  /**
+   * Request payload for creating/updating a book from the admin UI.
+   * publicationDate must be an ISO date string in the format YYYY-MM-DD.
+   */
+  export interface BookCreationRequest {
+    isbn: string;
+    title: string;
+    author: string;
+    description: string;
+    genre: BookGenre;
+    totalCopies: number;
+    availableCopies?: number;
+    publicationDate: string;
+  }
+
+  export interface BookAdminResponse {
+    id: number;
+    isbn: string;
+    title: string;
+    author: string;
+    description: string;
+    genre: BookGenre;
+    totalCopies: number;
+    availableCopies: number;
+    publicationDate: string;
+    createdAt: string;
+    updatedAt: string;
   }
