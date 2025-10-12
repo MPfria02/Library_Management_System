@@ -105,4 +105,16 @@ public class BusinessRuleViolationException extends BaseLibraryException {
         return new BusinessRuleViolationException(
             "Cannot return book '" + bookTitle + "': all copies are already available");
     }
+
+    /**
+     * Convenience method to create a BusinessRuleViolationException for attempting to reduce total copies below borrowed copies.
+     * 
+     * @param borrowedCopies the number of currently borrowed copies
+     * @param newTotalCopies the new total copies being set
+     * @return BusinessRuleViolationException with formatted message
+     */
+    public static BusinessRuleViolationException cannotReduceCopiesBelowBorrowed(int borrowedCopies, int newTotalCopies) {
+        return new BusinessRuleViolationException(
+            "Cannot set total copies to " + newTotalCopies + " when " + borrowedCopies + " copies are currently borrowed");
+    }
 }

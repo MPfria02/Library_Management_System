@@ -50,6 +50,7 @@ public class SecurityConfig {
                 .requestMatchers(HttpMethod.POST, "/api/books/**").hasRole(UserRole.ADMIN.name())
                 .requestMatchers(HttpMethod.PUT, "/api/books/**").hasRole(UserRole.ADMIN.name())
                 .requestMatchers(HttpMethod.DELETE, "/api/books/**").hasRole(UserRole.ADMIN.name())
+                .requestMatchers("/api/admin/books").hasRole(UserRole.ADMIN.name())
                 // Inventory operations require authentication
                 .requestMatchers("/api/inventory/**").authenticated()
                 // User APIs require admin
