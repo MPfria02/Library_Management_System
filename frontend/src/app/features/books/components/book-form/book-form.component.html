@@ -1,0 +1,77 @@
+<section class="toolbar">
+  <h1>{{ isEdit() ? ('Edit Book: ' + bookTitle()) : 'Create New Book' }}</h1>
+</section>
+
+<mat-card>
+  <form [formGroup]="form" (ngSubmit)="save()" class="book-form">
+    <div class="grid">
+      <mat-form-field appearance="outline">
+        <mat-label>ISBN</mat-label>
+        <input matInput aria-label="ISBN" formControlName="isbn" />
+        <mat-hint>10-20 characters</mat-hint>
+        <mat-error *ngIf="form.get('isbn')?.hasError('required')">ISBN is required</mat-error>
+        <mat-error *ngIf="form.get('isbn')?.hasError('minlength') || form.get('isbn')?.hasError('maxlength')">ISBN must be 10-20 characters</mat-error>
+      </mat-form-field>
+
+      <mat-form-field appearance="outline">
+        <mat-label>Title</mat-label>
+        <input matInput aria-label="Title" formControlName="title" />
+        <mat-error *ngIf="form.get('title')?.hasError('required')">Title is required</mat-error>
+        <mat-error *ngIf="form.get('title')?.hasError('maxlength')">Title cannot exceed 200 characters</mat-error>
+      </mat-form-field>
+
+      <mat-form-field appearance="outline">
+        <mat-label>Author</mat-label>
+        <input matInput aria-label="Author" formControlName="author" />
+        <mat-error *ngIf="form.get('author')?.hasError('required')">Author is required</mat-error>
+        <mat-error *ngIf="form.get('author')?.hasError('maxlength')">Author cannot exceed 100 characters</mat-error>
+      </mat-form-field>
+
+      <mat-form-field appearance="outline" class="full">
+        <mat-label>Description</mat-label>
+        <textarea matInput aria-label="Description" formControlName="description" rows="4"></textarea>
+        <mat-error *ngIf="form.get('description')?.hasError('maxlength')">Description cannot exceed 2000 characters</mat-error>
+      </mat-form-field>
+
+      <mat-form-field appearance="outline">
+        <mat-label>Genre</mat-label>
+        <mat-select aria-label="Genre" formControlName="genre">
+          <mat-option *ngFor="let g of genres" [value]="g">{{ g | titlecase }}</mat-option>
+        </mat-select>
+        <mat-error *ngIf="form.get('genre')?.hasError('required')">Genre is required</mat-error>
+      </mat-form-field>
+
+      <mat-form-field appearance="outline">
+        <mat-label>Total Copies</mat-label>
+        <input matInput type="number" aria-label="Total Copies" formControlName="totalCopies"
+               [attr.min]="isEdit() ? borrowedCopies : 1" />
+        <mat-error *ngIf="form.get('totalCopies')?.hasError('required')">Total copies is required</mat-error>
+        <mat-error *ngIf="form.get('totalCopies')?.hasError('min')">
+          Must be at least {{ isEdit() ? borrowedCopies : 1 }}
+        </mat-error>
+        <mat-hint *ngIf="isEdit()">Currently borrowed: {{ borrowedCopies }} copies (minimum total allowed)</mat-hint>
+      </mat-form-field>
+
+      <mat-form-field appearance="outline">
+        <mat-label>Available Copies</mat-label>
+        <input matInput type="number" aria-label="Available Copies" formControlName="availableCopies" [readonly]="isEdit()" min="0" />
+        <mat-error *ngIf="form.get('availableCopies')?.hasError('min')">Cannot be negative</mat-error>
+      </mat-form-field>
+
+      <mat-form-field appearance="outline">
+        <mat-label>Publication Date</mat-label>
+        <input matInput [matDatepicker]="picker" aria-label="Publication Date" formControlName="publicationDate" [max]="today" />
+        <mat-datepicker-toggle matIconSuffix [for]="picker"></mat-datepicker-toggle>
+        <mat-datepicker #picker></mat-datepicker>
+        <mat-error *ngIf="form.get('publicationDate')?.hasError('required')">Publication date is required</mat-error>
+      </mat-form-field>
+    </div>
+
+    <div class="actions">
+      <button mat-button type="button" (click)="cancel()">Cancel</button>
+      <button mat-raised-button color="primary" type="submit" [disabled]="form.invalid || submitting()">Save Book</button>
+    </div>
+  </form>
+</mat-card>
+
+

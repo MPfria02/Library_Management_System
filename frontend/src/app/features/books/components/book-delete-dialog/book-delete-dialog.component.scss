@@ -1,0 +1,12 @@
+:host {
+  display: block;
+  width: 400px;
+}
+
+[mat-dialog-title] {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+
