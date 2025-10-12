@@ -1,0 +1,20 @@
+<h2 mat-dialog-title>
+  <mat-icon color="warn" aria-hidden="true">warning</mat-icon>
+  Delete Book?
+</h2>
+
+<div mat-dialog-content>
+  <p>Are you sure you want to delete this book? This action cannot be undone.</p>
+  <p>
+    <strong>{{ data.title }}</strong><br />
+    {{ data.author }}<br />
+    ISBN: {{ data.isbn }}
+  </p>
+</div>
+
+<div mat-dialog-actions>
+  <button mat-button type="button" (click)="cancel()">Cancel</button>
+  <button mat-button color="warn" type="button" (click)="confirm()">Delete</button>
+</div>
+
+
