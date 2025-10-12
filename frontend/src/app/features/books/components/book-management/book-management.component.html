@@ -1,0 +1,95 @@
+<section class="toolbar">
+  <h1>Book Management</h1>
+  <div class="actions">
+    <button mat-stroked-button color="primary" aria-label="Search and Filter" (click)="openFilterDialog()">
+      <mat-icon>filter_list</mat-icon>
+      Search/Filter
+    </button>
+    <button mat-raised-button color="primary" aria-label="Add New Book" (click)="addNewBook()">
+      <mat-icon>add</mat-icon>
+      Add New Book
+    </button>
+  </div>
+  
+</section>
+
+<div class="loading" *ngIf="loading(); else loaded">
+  <mat-progress-spinner mode="indeterminate"></mat-progress-spinner>
+  
+</div>
+
+<ng-template #loaded>
+  <div *ngIf="books().length === 0; else tableBlock" class="empty-state" aria-live="polite">
+    <mat-icon>library_books</mat-icon>
+    <p>No books found. Click 'Add New Book' to create one.</p>
+  </div>
+
+  <ng-template #tableBlock>
+    <table mat-table [dataSource]="dataSource" matSort class="mat-elevation-z2" aria-label="Books table">
+      <!-- ISBN Column -->
+      <ng-container matColumnDef="isbn">
+        <th mat-header-cell *matHeaderCellDef mat-sort-header>ISBN</th>
+        <td mat-cell *matCellDef="let book">{{ book.isbn }}</td>
+      </ng-container>
+
+      <!-- Title Column -->
+      <ng-container matColumnDef="title">
+        <th mat-header-cell *matHeaderCellDef mat-sort-header>Title</th>
+        <td mat-cell *matCellDef="let book">{{ book.title }}</td>
+      </ng-container>
+
+      <!-- Author Column -->
+      <ng-container matColumnDef="author">
+        <th mat-header-cell *matHeaderCellDef mat-sort-header>Author</th>
+        <td mat-cell *matCellDef="let book">{{ book.author }}</td>
+      </ng-container>
+
+      <!-- Genre Column -->
+      <ng-container matColumnDef="genre">
+        <th mat-header-cell *matHeaderCellDef mat-sort-header>Genre</th>
+        <td mat-cell *matCellDef="let book">
+          <mat-chip color="primary" selected>{{ book.genre }}</mat-chip>
+        </td>
+      </ng-container>
+
+      <!-- Total Copies Column -->
+      <ng-container matColumnDef="totalCopies">
+        <th mat-header-cell *matHeaderCellDef mat-sort-header>Total Copies</th>
+        <td mat-cell *matCellDef="let book">{{ book.totalCopies }}</td>
+      </ng-container>
+
+      <!-- Available Copies Column -->
+      <ng-container matColumnDef="availableCopies">
+        <th mat-header-cell *matHeaderCellDef mat-sort-header>Available Copies</th>
+        <td mat-cell *matCellDef="let book">{{ book.availableCopies }}</td>
+      </ng-container>
+
+      <!-- Publication Date Column -->
+      <ng-container matColumnDef="publicationDate">
+        <th mat-header-cell *matHeaderCellDef mat-sort-header>Publication Date</th>
+        <td mat-cell *matCellDef="let book">{{ book.publicationDate | date:'mediumDate' }}</td>
+      </ng-container>
+
+      <!-- Actions Column -->
+      <ng-container matColumnDef="actions">
+        <th mat-header-cell *matHeaderCellDef>Actions</th>
+        <td mat-cell *matCellDef="let book">
+          <button mat-icon-button aria-label="Edit book" (click)="editBook(book.id)">
+            <mat-icon>edit</mat-icon>
+          </button>
+          <button mat-icon-button color="warn" aria-label="Delete book" (click)="deleteBook(book)">
+            <mat-icon>delete</mat-icon>
+          </button>
+        </td>
+      </ng-container>
+
+      <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
+      <tr mat-row *matRowDef="let row; columns: displayedColumns"></tr>
+    </table>
+
+    <mat-paginator [length]="totalElements()" [pageIndex]="currentPage()" [pageSize]="pageSize" [pageSizeOptions]="[12,24,50,100]" (page)="onPageChange($event)">
+    </mat-paginator>
+  </ng-template>
+</ng-template>
+
+

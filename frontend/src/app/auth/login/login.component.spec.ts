@@ -82,7 +82,9 @@ describe('LoginComponent', () => {
   it('should show success snackbar and navigate to dashboard on successful login', fakeAsync(() => {
     // Setup successful login
     mockAuthService.login.and.returnValue(Promise.resolve());
-    
+    // Explicit role mock for MEMBER
+    mockAuthService.getUserRole = jasmine.createSpy('getUserRole').and.returnValue('MEMBER');
+
     // Set valid form values
     component.loginForm.setValue({
       email: 'test@example.com',
@@ -91,24 +93,85 @@ describe('LoginComponent', () => {
 
     // Submit form
     component.onSubmit();
-    
+
     // Initially, loading should be true
     expect(component.loading()).toBeTrue();
-    
+
     // Wait for all async operations to complete
     flushMicrotasks();
-    
+
     // Verify all expected behaviors
     expect(mockAuthService.login).toHaveBeenCalledWith({
       email: 'test@example.com',
       password: '123456',
     });
+    expect(mockAuthService.getUserRole).toHaveBeenCalled();
     expect(mockSnackBar.open).toHaveBeenCalledWith(
       MSG_LOGIN_SUCCESS,
       SNACKBAR_ACTION,
       SNACKBAR_CONFIG
     );
     expect(mockRouter.navigate).toHaveBeenCalledWith(['/dashboard']);
+    expect(component.loading()).toBeFalse();
+  }));
+
+  it('should navigate to /admin/books when login successful with ADMIN role', fakeAsync(() => {
+    // Setup successful login
+    mockAuthService.login.and.returnValue(Promise.resolve());
+    mockAuthService.getUserRole = jasmine.createSpy('getUserRole').and.returnValue('ADMIN');
+
+    // Set valid form values
+    component.loginForm.setValue({
+      email: 'admin@example.com',
+      password: 'adminpass',
+    });
+
+    // Submit form
+    component.onSubmit();
+    expect(component.loading()).toBeTrue();
+    flushMicrotasks();
+
+    expect(mockAuthService.login).toHaveBeenCalledWith({
+      email: 'admin@example.com',
+      password: 'adminpass',
+    });
+    expect(mockAuthService.getUserRole).toHaveBeenCalled();
+    expect(mockRouter.navigate).toHaveBeenCalledWith(['/admin/books']);
+    expect(mockSnackBar.open).toHaveBeenCalledWith(
+      MSG_LOGIN_SUCCESS,
+      SNACKBAR_ACTION,
+      SNACKBAR_CONFIG
+    );
+    expect(component.loading()).toBeFalse();
+  }));
+
+  it('should navigate to /dashboard when login successful with MEMBER role', fakeAsync(() => {
+    // Setup successful login
+    mockAuthService.login.and.returnValue(Promise.resolve());
+    mockAuthService.getUserRole = jasmine.createSpy('getUserRole').and.returnValue('MEMBER');
+
+    // Set valid form values
+    component.loginForm.setValue({
+      email: 'member@example.com',
+      password: 'memberpass',
+    });
+
+    // Submit form
+    component.onSubmit();
+    expect(component.loading()).toBeTrue();
+    flushMicrotasks();
+
+    expect(mockAuthService.login).toHaveBeenCalledWith({
+      email: 'member@example.com',
+      password: 'memberpass',
+    });
+    expect(mockAuthService.getUserRole).toHaveBeenCalled();
+    expect(mockRouter.navigate).toHaveBeenCalledWith(['/dashboard']);
+    expect(mockSnackBar.open).toHaveBeenCalledWith(
+      MSG_LOGIN_SUCCESS,
+      SNACKBAR_ACTION,
+      SNACKBAR_CONFIG
+    );
     expect(component.loading()).toBeFalse();
   }));
 
