@@ -3,6 +3,9 @@ import { LoginComponent, RegisterComponent } from './auth';
 import { authGuard } from './auth';
 import { BookListComponent } from './features/books/components/book-list/book-list.component';
 import { BookDetailsComponent } from './features/books/components/book-details/book-details.component';
+import { adminGuard } from './auth/guards/admin.guard';
+import { BookManagementComponent } from './features/books/components/book-management/book-management.component';
+import { BookFormComponent } from './features/books/components/book-form/book-form.component';
 
 export const routes: Routes = [
   { path: '', redirectTo: '/login', pathMatch: 'full' },
@@ -19,6 +22,25 @@ export const routes: Routes = [
     component: BookDetailsComponent,
     canActivate: [authGuard],
     title: 'Book Details'
+  },
+  // Admin routes
+  {
+    path: 'admin/books',
+    component: BookManagementComponent,
+    canActivate: [authGuard, adminGuard],
+    title: 'Admin Dashboard'
+  },
+  {
+    path: 'admin/books/new',
+    component: BookFormComponent,
+    canActivate: [authGuard, adminGuard],
+    title: 'New Book'
+  },
+  {
+    path: 'admin/books/:id/edit',
+    component: BookFormComponent,
+    canActivate: [authGuard, adminGuard],
+    title: 'Edit Book'
   },
   { path: '**', redirectTo: '/login' },
 ];

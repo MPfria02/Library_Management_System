@@ -54,8 +54,13 @@ export class LoginComponent {
     this.loading.set(true);
     try {
       await this.authService.login(this.loginForm.value);
+      
+      // Get user role and navigate accordingly
+      const userRole = this.authService.getUserRole();
+      const destination = userRole === 'ADMIN' ? '/admin/books' : '/dashboard';
+      
       this.snackBar.open('Login successful!', 'Close', { duration: 3000 });
-      this.router.navigate(['/dashboard']);
+      this.router.navigate([destination]);
     } catch (error: any) {
       this.snackBar.open(error.message || 'Login failed', 'Close', { duration: 3000 });
     } finally {
