@@ -2,6 +2,7 @@ package com.librarymanager.backend.mapper;
 
 import com.librarymanager.backend.dto.request.BookCreationRequest;
 import com.librarymanager.backend.dto.response.BookResponse;
+import com.librarymanager.backend.dto.response.BookAdminResponse;
 import com.librarymanager.backend.entity.Book;
 import org.springframework.stereotype.Component;
 
@@ -60,6 +61,30 @@ public class BookMapper {
                 .genre(book.getGenre())
                 .availableCopies(book.getAvailableCopies())
                 .publicationDate(book.getPublicationDate())
+                .build();
+    }
+
+    /**
+     * Converts a Book entity to BookAdminResponse DTO with all fields.
+     * Used for admin endpoints that require full book data including ISBN and total copies.
+     *
+     * @param book the book entity to convert
+     * @return BookAdminResponse with all book fields populated
+     */
+    public BookAdminResponse toAdminResponse(Book book) {
+        if (book == null) return null;
+        return BookAdminResponse.builder()
+                .id(book.getId())
+                .isbn(book.getIsbn())
+                .title(book.getTitle())
+                .author(book.getAuthor())
+                .description(book.getDescription())
+                .genre(book.getGenre())
+                .totalCopies(book.getTotalCopies())
+                .availableCopies(book.getAvailableCopies())
+                .publicationDate(book.getPublicationDate())
+                .createdAt(book.getCreatedAt() != null ? book.getCreatedAt().toLocalDateTime() : null)
+                .updatedAt(book.getUpdatedAt() != null ? book.getUpdatedAt().toLocalDateTime() : null)
                 .build();
     }
 }

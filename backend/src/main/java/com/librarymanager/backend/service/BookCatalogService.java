@@ -116,9 +116,11 @@ public class BookCatalogService {
             throw ResourceNotFoundException.forBook(book.getId());
         }
             
-        // Business rule: Available copies validation
-        if (book.getAvailableCopies() > book.getTotalCopies()) {
-            throw BusinessRuleViolationException.invalidCopyCounts(book.getAvailableCopies(), book.getTotalCopies());
+        // Business rule: Cannot reduce total copies below currently borrowed copies
+        Book existingBookEntity = existingBook.get();
+        int borrowedCopies = existingBookEntity.getTotalCopies() - existingBookEntity.getAvailableCopies();
+        if (book.getTotalCopies() < borrowedCopies) {
+            throw BusinessRuleViolationException.cannotReduceCopiesBelowBorrowed(borrowedCopies, book.getTotalCopies());
         }
         
         Book updatedBook = bookRepository.save(book);
