@@ -1,0 +1,118 @@
+<div class="user-management-container">
+  <!-- Toolbar -->
+  <mat-toolbar class="toolbar">
+    <span class="toolbar-title">User Management</span>
+    <div class="toolbar-spacer"></div>
+    <button mat-button color="primary" (click)="goBackToBooks()">
+      <mat-icon>arrow_back</mat-icon>
+      Back to Books
+    </button>
+  </mat-toolbar>
+
+  <!-- Search Form -->
+  <mat-card class="search-card">
+    <mat-card-content>
+      <div class="search-form">
+        <mat-form-field appearance="outline" class="search-field">
+          <mat-label>First Name</mat-label>
+          <input matInput [(ngModel)]="searchFirstName" placeholder="Enter first name">
+        </mat-form-field>
+        
+        <mat-form-field appearance="outline" class="search-field">
+          <mat-label>Last Name</mat-label>
+          <input matInput [(ngModel)]="searchLastName" placeholder="Enter last name">
+        </mat-form-field>
+        
+        <div class="search-actions">
+          <button mat-raised-button color="primary" (click)="searchUsers()" [disabled]="loading()">
+            <mat-icon>search</mat-icon>
+            Search
+          </button>
+          <button mat-button (click)="clearSearch()" [disabled]="loading()">
+            <mat-icon>clear</mat-icon>
+            Clear
+          </button>
+        </div>
+      </div>
+    </mat-card-content>
+  </mat-card>
+
+  <!-- Loading Spinner -->
+  @if (loading()) {
+    <div class="loading-container">
+      <mat-spinner diameter="50"></mat-spinner>
+      <p>Loading users...</p>
+    </div>
+  }
+
+  <!-- Users Table -->
+  @if (!loading() && users().length > 0) {
+    <mat-card class="table-card">
+      <mat-card-content>
+        <table mat-table [dataSource]="users()" class="users-table">
+          <!-- Email Column -->
+          <ng-container matColumnDef="email">
+            <th mat-header-cell *matHeaderCellDef>Email</th>
+            <td mat-cell *matCellDef="let user">{{ user.email }}</td>
+          </ng-container>
+
+          <!-- First Name Column -->
+          <ng-container matColumnDef="firstName">
+            <th mat-header-cell *matHeaderCellDef>First Name</th>
+            <td mat-cell *matCellDef="let user">{{ user.firstName }}</td>
+          </ng-container>
+
+          <!-- Last Name Column -->
+          <ng-container matColumnDef="lastName">
+            <th mat-header-cell *matHeaderCellDef>Last Name</th>
+            <td mat-cell *matCellDef="let user">{{ user.lastName }}</td>
+          </ng-container>
+
+          <!-- Phone Column -->
+          <ng-container matColumnDef="phone">
+            <th mat-header-cell *matHeaderCellDef>Phone</th>
+            <td mat-cell *matCellDef="let user">{{ user.phone }}</td>
+          </ng-container>
+
+          <!-- Role Column -->
+          <ng-container matColumnDef="role">
+            <th mat-header-cell *matHeaderCellDef>Role</th>
+            <td mat-cell *matCellDef="let user">
+              <mat-chip [color]="getRoleColor(user.role)" selected>
+                {{ getRoleDisplayName(user.role) }}
+              </mat-chip>
+            </td>
+          </ng-container>
+
+          <!-- Actions Column -->
+          <ng-container matColumnDef="actions">
+            <th mat-header-cell *matHeaderCellDef>Actions</th>
+            <td mat-cell *matCellDef="let user">
+              <button mat-icon-button color="primary" (click)="editUser(user)" title="Edit User">
+                <mat-icon>edit</mat-icon>
+              </button>
+            </td>
+          </ng-container>
+
+          <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
+          <tr mat-row *matRowDef="let row; columns: displayedColumns;"></tr>
+        </table>
+      </mat-card-content>
+    </mat-card>
+  }
+
+  <!-- Empty State -->
+  @if (!loading() && users().length === 0) {
+    <mat-card class="empty-state-card">
+      <mat-card-content class="empty-state">
+        <mat-icon class="empty-icon">people</mat-icon>
+        <h3>No users found</h3>
+        <p>Try adjusting your search criteria or clear the search to see all users.</p>
+        <button mat-raised-button color="primary" (click)="clearSearch()">
+          <mat-icon>refresh</mat-icon>
+          Show All Users
+        </button>
+      </mat-card-content>
+    </mat-card>
+  }
+</div>
