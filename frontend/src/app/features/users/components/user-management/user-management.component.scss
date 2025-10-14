@@ -1,0 +1,144 @@
+.user-management-container {
+  padding: 16px;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.toolbar {
+  margin-bottom: 16px;
+  
+  .toolbar-title {
+    font-size: 24px;
+    font-weight: 500;
+  }
+  
+  .toolbar-spacer {
+    flex: 1 1 auto;
+  }
+}
+
+.search-card {
+  margin-bottom: 16px;
+  
+  .search-form {
+    display: flex;
+    gap: 16px;
+    align-items: flex-end;
+    flex-wrap: wrap;
+    
+    .search-field {
+      flex: 1;
+      min-width: 200px;
+    }
+    
+    .search-actions {
+      display: flex;
+      gap: 8px;
+    }
+  }
+}
+
+.loading-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 48px;
+  
+  p {
+    margin-top: 16px;
+    color: #666;
+  }
+}
+
+.table-card {
+  .users-table {
+    width: 100%;
+    
+    th {
+      font-weight: 600;
+      color: #333;
+    }
+    
+    td {
+      padding: 12px 8px;
+    }
+    
+    .mat-column-email {
+      min-width: 200px;
+    }
+    
+    .mat-column-firstName,
+    .mat-column-lastName {
+      min-width: 120px;
+    }
+    
+    .mat-column-phone {
+      min-width: 140px;
+    }
+    
+    .mat-column-role {
+      min-width: 100px;
+    }
+    
+    .mat-column-actions {
+      width: 80px;
+      text-align: center;
+    }
+  }
+}
+
+.empty-state-card {
+  .empty-state {
+    text-align: center;
+    padding: 48px 24px;
+    
+    .empty-icon {
+      font-size: 64px;
+      height: 64px;
+      width: 64px;
+      color: #ccc;
+      margin-bottom: 16px;
+    }
+    
+    h3 {
+      margin: 0 0 8px 0;
+      color: #666;
+      font-weight: 500;
+    }
+    
+    p {
+      margin: 0 0 24px 0;
+      color: #888;
+    }
+  }
+}
+
+// Responsive design
+@media (max-width: 768px) {
+  .search-form {
+    flex-direction: column;
+    align-items: stretch;
+    
+    .search-field {
+      min-width: unset;
+    }
+    
+    .search-actions {
+      justify-content: center;
+    }
+  }
+  
+  .users-table {
+    font-size: 14px;
+    
+    .mat-column-email {
+      min-width: 150px;
+    }
+    
+    .mat-column-firstName,
+    .mat-column-lastName {
+      min-width: 100px;
+    }
+  }
+}

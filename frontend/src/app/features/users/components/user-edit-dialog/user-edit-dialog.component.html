@@ -1,0 +1,80 @@
+<div class="dialog-header">
+  <h2 mat-dialog-title>Edit User: {{ data.firstName }} {{ data.lastName }}</h2>
+</div>
+
+<mat-dialog-content class="dialog-content">
+  <form [formGroup]="form" class="user-form">
+    <!-- Email (read-only) -->
+    <mat-form-field appearance="outline" class="full-width">
+      <mat-label>Email</mat-label>
+      <input matInput [value]="data.email" readonly>
+      <mat-hint>Email cannot be changed</mat-hint>
+    </mat-form-field>
+
+    <!-- First Name -->
+    <mat-form-field appearance="outline" class="full-width">
+      <mat-label>First Name</mat-label>
+      <input matInput formControlName="firstName" placeholder="Enter first name">
+      @if (getFieldError('firstName')) {
+        <mat-error>{{ getFieldError('firstName') }}</mat-error>
+      }
+    </mat-form-field>
+
+    <!-- Last Name -->
+    <mat-form-field appearance="outline" class="full-width">
+      <mat-label>Last Name</mat-label>
+      <input matInput formControlName="lastName" placeholder="Enter last name">
+      @if (getFieldError('lastName')) {
+        <mat-error>{{ getFieldError('lastName') }}</mat-error>
+      }
+    </mat-form-field>
+
+    <!-- Phone -->
+    <mat-form-field appearance="outline" class="full-width">
+      <mat-label>Phone</mat-label>
+      <input 
+        matInput 
+        formControlName="phone" 
+        placeholder="XXX-XXX-XXXX"
+        maxlength="12"
+        (input)="onPhoneInput($event)"
+        (keydown)="onPhoneKeyDown($event)"
+        (paste)="onPhonePaste($event)">
+      @if (getFieldError('phone')) {
+        <mat-error>{{ getFieldError('phone') }}</mat-error>
+      }
+      <mat-hint>Format: XXX-XXX-XXXX (10 digits)</mat-hint>
+    </mat-form-field>
+
+    <!-- Role -->
+    <mat-form-field appearance="outline" class="full-width">
+      <mat-label>Role</mat-label>
+      <mat-select formControlName="role">
+        @for (role of userRoles; track role) {
+          <mat-option [value]="role">{{ getRoleDisplayName(role) }}</mat-option>
+        }
+      </mat-select>
+      <mat-hint>Changing role requires confirmation</mat-hint>
+    </mat-form-field>
+  </form>
+</mat-dialog-content>
+
+<mat-dialog-actions class="dialog-actions">
+  <button mat-button (click)="cancel()" [disabled]="submitting()">
+    Cancel
+  </button>
+  
+  <button 
+    mat-raised-button 
+    color="primary" 
+    (click)="save()" 
+    [disabled]="form.invalid || isFormUnchanged() || submitting()"
+    class="save-button">
+    @if (submitting()) {
+      <mat-spinner diameter="20" class="button-spinner"></mat-spinner>
+      Saving...
+    } @else {
+      Save Changes
+    }
+  </button>
+</mat-dialog-actions>

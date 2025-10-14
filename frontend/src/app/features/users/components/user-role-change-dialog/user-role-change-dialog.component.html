@@ -1,0 +1,71 @@
+<div class="dialog-header">
+  <h2 mat-dialog-title>Change User Role?</h2>
+</div>
+
+<mat-dialog-content class="dialog-content">
+  <div class="warning-section">
+    <mat-icon color="warn" class="warning-icon">warning</mat-icon>
+    
+    <div class="warning-message">
+      <p class="main-message">
+        Are you sure you want to change <strong>{{ data.userName }}</strong>'s role from 
+        <strong>{{ getRoleDisplayName(data.currentRole) }}</strong> to 
+        <strong>{{ getRoleDisplayName(data.newRole) }}</strong>?
+      </p>
+    </div>
+  </div>
+
+  <!-- Admin Role Warning -->
+  @if (isChangingToAdmin()) {
+    <mat-card class="warning-card admin-warning">
+      <mat-card-content>
+        <div class="warning-content">
+          <mat-icon color="warn">security</mat-icon>
+          <div class="warning-text">
+            <h4>Administrative Privileges</h4>
+            <p>This will grant full administrative privileges including:</p>
+            <ul>
+              <li>User management and role changes</li>
+              <li>Book catalog management</li>
+              <li>System administration access</li>
+            </ul>
+          </div>
+        </div>
+      </mat-card-content>
+    </mat-card>
+  }
+
+  <!-- Member Role Warning -->
+  @if (isChangingToMember()) {
+    <mat-card class="warning-card member-warning">
+      <mat-card-content>
+        <div class="warning-content">
+          <mat-icon color="accent">person</mat-icon>
+          <div class="warning-text">
+            <h4>Standard User Access</h4>
+            <p>This will remove administrative privileges. The user will only be able to:</p>
+            <ul>
+              <li>Browse and search books</li>
+              <li>Borrow and return books</li>
+              <li>View their own profile</li>
+            </ul>
+          </div>
+        </div>
+      </mat-card-content>
+    </mat-card>
+  }
+</mat-dialog-content>
+
+<mat-dialog-actions class="dialog-actions">
+  <button mat-button (click)="cancel()" class="cancel-button">
+    Cancel
+  </button>
+  
+  <button 
+    mat-button 
+    color="warn" 
+    (click)="confirm()" 
+    class="confirm-button">
+    Confirm Change
+  </button>
+</mat-dialog-actions>
