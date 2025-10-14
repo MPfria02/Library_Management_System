@@ -103,6 +103,10 @@ export class BookManagementComponent implements OnInit {
     this.router.navigate(['/admin/books/new']);
   }
 
+  navigateToUsers(): void {
+    this.router.navigate(['/admin/users']);
+  }
+
   editBook(id: number): void {
     this.router.navigate(['/admin/books', id, 'edit']);
   }
