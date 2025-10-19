@@ -1,13 +1,23 @@
 package com.librarymanager.backend.testutil;
 
+import com.librarymanager.backend.dto.response.BorrowRecordResponse;
 import com.librarymanager.backend.entity.Book;
 import com.librarymanager.backend.entity.BookGenre;
+import com.librarymanager.backend.entity.BorrowRecord;
+import com.librarymanager.backend.entity.BorrowStatus;
 import com.librarymanager.backend.entity.User;
 import com.librarymanager.backend.entity.UserRole;
+import com.librarymanager.backend.security.CustomUserDetails;
 
 import java.time.LocalDate;
 import java.util.Arrays;
 import java.util.List;
+
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.domain.PageImpl;
 
 /**
  * Factory class for creating test data objects.
@@ -297,5 +307,142 @@ public class TestDataFactory {
             .lastName("") // Invalid: blank last name
             .phone("12345678901234567890123456789") // Invalid: too long
             .build();
+    }
+
+    // ================== BorrowRecord Test Data Factory Methods ==================
+
+    /**
+     * 
+     * Creates a borrow record for testing borrowing functionality.
+     * 
+     * @return BorrowRecord with realistic borrow data
+     */
+    public static BorrowRecord createBorrowRecord(User user, Book book)  {
+        LocalDate now = LocalDate.now();
+
+        return BorrowRecord.builder()
+                    .user(user)
+                    .book(book)
+                    .borrowDate(now)
+                    .dueDate(BorrowRecord.calculateDueDate(now))
+                    .status(BorrowStatus.BORROWED)
+                    .build();
+    }
+
+    public static BorrowRecord createReturnedBorrowRecord(BorrowRecord borrowRecord) {
+        LocalDate borrowDate = LocalDate.now().minusDays(10);
+        LocalDate dueDate = borrowDate.plusDays(7);
+        LocalDate returnDate = LocalDate.now();
+
+        BorrowRecord returnedRecord = BorrowRecord.builder()
+                .id(borrowRecord.getId())
+                .user(borrowRecord.getUser())
+                .book(borrowRecord.getBook())
+                .borrowDate(borrowDate)
+                .dueDate(dueDate)
+                .returnDate(returnDate)
+                .status(BorrowStatus.RETURNED)
+                .build();
+                
+        return returnedRecord;
+    }
+
+    public static BorrowRecordResponse createBorrowRecordResponse(BorrowRecord borrowRecord) {
+        Book book = borrowRecord.getBook();
+        
+        return BorrowRecordResponse.builder()
+                        .id(borrowRecord.getId())
+                        .bookId(book.getId())
+                        .bookTitle(book.getTitle())
+                        .bookAuthor(book.getAuthor())
+                        .bookIsbn(book.getIsbn())
+                        .status(borrowRecord.getStatus())
+                        .borrowDate(borrowRecord.getBorrowDate())
+                        .dueDate(borrowRecord.getDueDate())
+                        .returnDate(null)
+                        .isOverdue(false)
+                        .build();
+    }
+
+    public static BorrowRecordResponse createReturnedBorrowRecordResponse(BorrowRecord borrowRecord) {
+        LocalDate borrowDate = LocalDate.now().minusDays(10);
+        LocalDate dueDate = borrowDate.plusDays(7);
+        LocalDate returnDate = LocalDate.now();
+        Book book = borrowRecord.getBook();
+
+        return BorrowRecordResponse.builder()
+                .id(1L)
+                .bookId(book.getId())
+                .bookTitle(book.getTitle())
+                .bookAuthor(book.getAuthor())
+                .bookIsbn(book.getIsbn())
+                .status(BorrowStatus.RETURNED)
+                .borrowDate(borrowDate)
+                .dueDate(dueDate)
+                .returnDate(returnDate)
+                .isOverdue(false)
+                .build();
+    }
+
+    public static CustomUserDetails createCustomUserDetails(User user) {
+        return new CustomUserDetails(user);
+    }
+
+    public static Pageable createPageable(int page, int size) {
+        return PageRequest.of(page, size, Sort.by("dueDate").ascending());
+    }
+
+    public static Pageable createDefaultPageable() {
+        return PageRequest.of(0, 10, Sort.by("dueDate").ascending());
+    }
+
+    public static Page<BorrowRecord> createEmptyBorrowRecordPage() {
+        return Page.empty();
+    }
+
+    public static Page<BorrowRecord> createCustomBorrowRecordPage(User user, List<Book> books, int page, int size) {
+        List<BorrowRecord> records = createSampleBorrowRecords(user, books);
+        return new PageImpl<>(records, PageRequest.of(page, size), records.size());
+    }
+
+    public static Page<BorrowRecord> createDefaultBorrowRecordPage(User user, List<Book> books) {
+        List<BorrowRecord> records = createSampleBorrowRecords(user, books);
+        return new PageImpl<>(records, PageRequest.of(0, 10), records.size());
+    }
+
+    public static Page<BorrowRecordResponse> createEmptyBorrowRecordResponsePage() {
+        return Page.empty();
+    }
+
+    public static Page<BorrowRecordResponse> createDefaultBorrowRecordResponsePage(User user, List<Book> books) {
+        List<BorrowRecord> records = createSampleBorrowRecords(user, books);
+        List<BorrowRecordResponse> responses = createSampleBorrowRecordResponses(records);
+        return new PageImpl<>(responses, PageRequest.of(0, 10), responses.size());
+    }
+
+    public static Page<BorrowRecordResponse> createCustomBorrowRecordResponsePage(User user, List<Book> books,
+            int pageNumber, int pageSize) {
+        List<BorrowRecord> records = createSampleBorrowRecords(user, books);
+        List<BorrowRecordResponse> responses = createSampleBorrowRecordResponses(records);
+        return new PageImpl<>(responses, PageRequest.of(pageNumber, pageSize), responses.size());
+    }
+
+    private static List<BorrowRecord> createSampleBorrowRecords(User user, List<Book> books) {
+        Long id = 1L;
+        List<BorrowRecord> records = books.stream()
+            .map(book -> createBorrowRecord(user, book))
+            .toList();
+  
+        for (BorrowRecord record : records) {
+            record.setId(id++);
+        }
+
+        return records;
+    }
+
+    private static List<BorrowRecordResponse> createSampleBorrowRecordResponses(List<BorrowRecord> records) {
+        return records.stream()
+            .map(record -> createBorrowRecordResponse(record))
+            .toList();
     }
 }

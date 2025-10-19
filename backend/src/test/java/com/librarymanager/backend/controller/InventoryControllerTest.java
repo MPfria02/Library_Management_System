@@ -1,25 +1,40 @@
 package com.librarymanager.backend.controller;
 
-import com.librarymanager.backend.dto.response.BookResponse;
+import com.librarymanager.backend.dto.response.BorrowRecordResponse;
 import com.librarymanager.backend.entity.Book;
-import com.librarymanager.backend.entity.BookGenre;
-import com.librarymanager.backend.mapper.BookMapper;
+import com.librarymanager.backend.entity.BorrowRecord;
+import com.librarymanager.backend.entity.BorrowStatus;
+import com.librarymanager.backend.entity.User;
+import com.librarymanager.backend.exception.BusinessRuleViolationException;
+import com.librarymanager.backend.exception.ResourceNotFoundException;
+import com.librarymanager.backend.mapper.BorrowRecordMapper;
+import com.librarymanager.backend.security.CustomUserDetails;
 import com.librarymanager.backend.service.InventoryService;
 import com.librarymanager.backend.testutil.TestDataFactory;
+import java.util.Arrays;
+
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
+import org.junit.jupiter.api.Nested;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 
-import java.time.LocalDate;
-
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.*;
+
+import java.util.List;
 
 /**
  * Unit tests for InventoryController.
@@ -33,462 +48,424 @@ import static org.mockito.Mockito.*;
 @DisplayName("InventoryController Unit Tests")
 class InventoryControllerTest {
 
+    private static final String NOT_AVAILABLE = "Book has no available copies";
+
+    private static final String BOOK_NOT_FOUND = "Book not found";
+
+    private static final String USER_NOT_FOUND = "User not found";
+
+    private static final String ALREADY_BORROWED = "You have already borrowed this book";
+
+    private static final String USER_BOOK_NOT_FOUND = "User or Book not found";
+
+    private static final String RETURNED_OR_NOT_BORROWED = "You have not borrowed this book or it has already been returned";
+
+    private static final String ALL_COPIES_AVAILABLE = "Cannot return book. All copies are already available";
+
+    private static final Long VALID_USER_ID = 1L;
+
+    private static final Long INVALID_USER_ID = 999L;
+    
+    private static final Long VALID_BOOK_ID = 1L;
+    
+    private static final Long INVALID_BOOK_ID = 999L;
+    
+    private static final Long VALID_BORROW_RECORD_ID = 1L;
+
     @Mock
     private InventoryService inventoryService;
 
     @Mock
-    private BookMapper bookMapper;
+    private BorrowRecordMapper borrowRecordMapper;
 
     @InjectMocks
     private InventoryController inventoryController;
 
-    private Book testBook;
-    private BookResponse testBookResponse;
-    private Book borrowedBook;
-    private Book returnedBook;
-
+    private User user;
+    private CustomUserDetails customUserDetails, invalidUserDetails;
+    private Book book;
+    List<Book> books;
+    private BorrowRecord borrowRecordMock;
+    private BorrowRecordResponse borrowRecordResponseMock, returnedBorrowRecordResponseMock;
+    private Page<BorrowRecord> borrowRecordPageMock;
+    private Page<BorrowRecordResponse> borrowRecordResponsePageMock;
+    private Pageable pageable;
+  
     @BeforeEach
     void setUp() {
-        // Setup test data for borrowing
-        testBook = TestDataFactory.createBookForBorrowing();
-        testBook.setId(1L);
+        user = TestDataFactory.createDefaultMemberUser();
+        user.setId(VALID_USER_ID);
 
-        testBookResponse = BookResponse.builder()
-            .id(1L)
-            .title("Borrowing Test Book")
-            .author("Test Author")
-            .description("Test description")
-            .genre(BookGenre.TECHNOLOGY)
-            .availableCopies(8)
-            .publicationDate(LocalDate.of(2020, 1, 1))
-            .build();
+        customUserDetails = TestDataFactory.createCustomUserDetails(user);
 
-        // Setup test data for after borrowing
-        borrowedBook = TestDataFactory.createBookForBorrowing();
-        borrowedBook.setId(1L);
-        borrowedBook.setAvailableCopies(7); // One copy borrowed
+        book = TestDataFactory.createBookForBorrowing();
+        book.setId(VALID_BOOK_ID); 
 
-        // Setup test data for returning
-        returnedBook = TestDataFactory.createBookForReturning();
-        returnedBook.setId(2L);
-        returnedBook.setAvailableCopies(3); // One copy returned
+        borrowRecordMock = TestDataFactory.createBorrowRecord(user, book);
+        borrowRecordMock.setId(VALID_BORROW_RECORD_ID);
+        
+        borrowRecordResponseMock = TestDataFactory.createBorrowRecordResponse(borrowRecordMock);
+        returnedBorrowRecordResponseMock = TestDataFactory.createReturnedBorrowRecordResponse(borrowRecordMock);
     }
 
     // ========== Borrow Book Tests ==========
 
-    @Test
-    @DisplayName("borrowBook_shouldReturnUpdatedBookResponse_whenValidBookIdProvided")
-    void borrowBook_shouldReturnUpdatedBookResponse_whenValidBookIdProvided() {
+    @Nested
+    @DisplayName("Borrow Book Tests")
+    class BorrowBookTests {
+
+        @Test
+        @DisplayName("borrowBook_shouldReturnBorrowRecordResponse_whenValidBookIdAndValidUserIdProvided")
+        void borrowBook_shouldReturnBorrowRecordResponse_whenValidBookIdAndValidUserIdProvided() {
+            // Arrange
+            when(inventoryService.borrowBook(VALID_USER_ID, VALID_BOOK_ID))
+                .thenReturn(borrowRecordMock);
+            when(borrowRecordMapper.toResponse(borrowRecordMock)).thenReturn(borrowRecordResponseMock);
+            
+            // Act
+            ResponseEntity<BorrowRecordResponse> borrowRecordResponse = 
+                        inventoryController.borrowBook(VALID_BOOK_ID, customUserDetails);
+
+            // Assert
+            assertThat(borrowRecordResponse).isNotNull();
+            assertThat(borrowRecordResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
+            assertThat(borrowRecordResponse.getBody().getBookId()).isEqualTo(VALID_BOOK_ID);
+            assertThat(borrowRecordResponse.getBody().getStatus()).isEqualTo(BorrowStatus.BORROWED);
+            assertThat(borrowRecordResponse.getBody()).isEqualTo(borrowRecordResponseMock);
+
+            verify(inventoryService).borrowBook(VALID_BOOK_ID, VALID_BOOK_ID);
+            verify(borrowRecordMapper).toResponse(borrowRecordMock);
+        }
+
+        @Test
+        @DisplayName("borrowBook_shouldThrowResourceNotFoundException_whenInvalidBookIdProvided")
+        void borrowBook_shouldThrowResourceNotFoundException_whenInvalidBookIdProvided() {
         // Given
-        Long bookId = 1L;
-        BookResponse borrowedBookResponse = BookResponse.builder()
-            .id(1L)
-            .title("Borrowing Test Book")
-            .author("Test Author")
-            .description("Test description")
-            .genre(BookGenre.TECHNOLOGY)
-            .availableCopies(7) // Decreased by 1
-            .publicationDate(LocalDate.of(2020, 1, 1))
-            .build();
-
-        when(inventoryService.borrowBook(bookId)).thenReturn(borrowedBook);
-        when(bookMapper.toResponse(borrowedBook)).thenReturn(borrowedBookResponse);
-
-        // When
-        ResponseEntity<BookResponse> response = inventoryController.borrowBook(bookId);
-
-        // Then
-        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
-        assertThat(response.getBody()).isNotNull();
-        assertThat(response.getBody().getId()).isEqualTo(1L);
-        assertThat(response.getBody().getTitle()).isEqualTo("Borrowing Test Book");
-        assertThat(response.getBody().getAvailableCopies()).isEqualTo(7);
-
-        verify(inventoryService).borrowBook(bookId);
-        verify(bookMapper).toResponse(borrowedBook);
-    }
-
-    @Test
-    @DisplayName("borrowBook_shouldCallServiceWithCorrectId_whenBookIdProvided")
-    void borrowBook_shouldCallServiceWithCorrectId_whenBookIdProvided() {
-        // Given
-        Long bookId = 1L;
-        when(inventoryService.borrowBook(bookId)).thenReturn(borrowedBook);
-        when(bookMapper.toResponse(borrowedBook)).thenReturn(testBookResponse);
-
-        // When
-        inventoryController.borrowBook(bookId);
-
-        // Then
-        verify(inventoryService).borrowBook(bookId);
-        verify(bookMapper).toResponse(borrowedBook);
-    }
-
-    @Test
-    @DisplayName("borrowBook_shouldDecreaseAvailableCopies_whenBookBorrowed")
-    void borrowBook_shouldDecreaseAvailableCopies_whenBookBorrowed() {
-        // Given
-        Long bookId = 1L;
-        BookResponse borrowedBookResponse = BookResponse.builder()
-            .id(1L)
-            .title("Borrowing Test Book")
-            .author("Test Author")
-            .description("Test description")
-            .genre(BookGenre.TECHNOLOGY)
-            .availableCopies(7) // Original was 8, now 7
-            .publicationDate(LocalDate.of(2020, 1, 1))
-            .build();
-
-        when(inventoryService.borrowBook(bookId)).thenReturn(borrowedBook);
-        when(bookMapper.toResponse(borrowedBook)).thenReturn(borrowedBookResponse);
-
-        // When
-        ResponseEntity<BookResponse> response = inventoryController.borrowBook(bookId);
-
-        // Then
-        assertThat(response.getBody().getAvailableCopies()).isLessThan(8); // Original available copies
-        assertThat(response.getBody().getAvailableCopies()).isEqualTo(7);
-       
-    }
-
-    @Test
-    @DisplayName("borrowBook_shouldHandleUnavailableBook_whenNoCopiesAvailable")
-    void borrowBook_shouldHandleUnavailableBook_whenNoCopiesAvailable() {
-        // Given
-        Long bookId = 1L;
-        Book unavailableBook = TestDataFactory.createUnavailableBook();
-        unavailableBook.setId(bookId);
-
-        BookResponse unavailableBookResponse = BookResponse.builder()
-            .id(1L)
-            .title("Clean Code")
-            .author("Robert Martin")
-            .description("Writing clean, maintainable code")
-            .genre(BookGenre.TECHNOLOGY)
-            .availableCopies(0) // No copies available
-            .publicationDate(LocalDate.of(2008, 8, 1))
-            .build();
-
-        when(inventoryService.borrowBook(bookId)).thenReturn(unavailableBook);
-        when(bookMapper.toResponse(unavailableBook)).thenReturn(unavailableBookResponse);
-
-        // When
-        ResponseEntity<BookResponse> response = inventoryController.borrowBook(bookId);
-
-        // Then
-        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
-        assertThat(response.getBody().getAvailableCopies()).isEqualTo(0);
-
-        verify(inventoryService).borrowBook(bookId);
-        verify(bookMapper).toResponse(unavailableBook);
-    }
-
-    // ========== Return Book Tests ==========
-
-    @Test
-    @DisplayName("returnBook_shouldReturnUpdatedBookResponse_whenValidBookIdProvided")
-    void returnBook_shouldReturnUpdatedBookResponse_whenValidBookIdProvided() {
-        // Given
-        Long bookId = 2L;
-        BookResponse returnedBookResponse = BookResponse.builder()
-            .id(2L)
-            .title("Return Test Book")
-            .author("Test Author")
-            .description("Test description")
-            .genre(BookGenre.SCIENCE)
-            .availableCopies(3) // Increased by 1
-            .publicationDate(LocalDate.of(2020, 1, 1))
-            .build();
-
-        when(inventoryService.returnBook(bookId)).thenReturn(returnedBook);
-        when(bookMapper.toResponse(returnedBook)).thenReturn(returnedBookResponse);
-
-        // When
-        ResponseEntity<BookResponse> response = inventoryController.returnBook(bookId);
-
-        // Then
-        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
-        assertThat(response.getBody()).isNotNull();
-        assertThat(response.getBody().getId()).isEqualTo(2L);
-        assertThat(response.getBody().getTitle()).isEqualTo("Return Test Book");
-        assertThat(response.getBody().getAvailableCopies()).isEqualTo(3);
-
-        verify(inventoryService).returnBook(bookId);
-        verify(bookMapper).toResponse(returnedBook);
-    }
-
-    @Test
-    @DisplayName("returnBook_shouldCallServiceWithCorrectId_whenBookIdProvided")
-    void returnBook_shouldCallServiceWithCorrectId_whenBookIdProvided() {
-        // Given
-        Long bookId = 2L;
-        when(inventoryService.returnBook(bookId)).thenReturn(returnedBook);
-        when(bookMapper.toResponse(returnedBook)).thenReturn(testBookResponse);
-
-        // When
-        inventoryController.returnBook(bookId);
-
-        // Then
-        verify(inventoryService).returnBook(bookId);
-        verify(bookMapper).toResponse(returnedBook);
-    }
-
-    @Test
-    @DisplayName("returnBook_shouldIncreaseAvailableCopies_whenBookReturned")
-    void returnBook_shouldIncreaseAvailableCopies_whenBookReturned() {
-        // Given
-        Long bookId = 2L;
-        BookResponse returnedBookResponse = BookResponse.builder()
-            .id(2L)
-            .title("Return Test Book")
-            .author("Test Author")
-            .description("Test description")
-            .genre(BookGenre.SCIENCE)
-            .availableCopies(3) // Original was 2, now 3
-            .publicationDate(LocalDate.of(2020, 1, 1))
-            .build();
-
-        when(inventoryService.returnBook(bookId)).thenReturn(returnedBook);
-        when(bookMapper.toResponse(returnedBook)).thenReturn(returnedBookResponse);
-
-        // When
-        ResponseEntity<BookResponse> response = inventoryController.returnBook(bookId);
-
-        // Then
-        assertThat(response.getBody().getAvailableCopies()).isGreaterThan(2); // Original available copies
-        assertThat(response.getBody().getAvailableCopies()).isEqualTo(3);
+        given(inventoryService.borrowBook(VALID_USER_ID, INVALID_BOOK_ID))
+                    .willThrow(new ResourceNotFoundException(BOOK_NOT_FOUND));
         
-    }
-
-    @Test
-    @DisplayName("returnBook_shouldHandleBookWithAllCopiesAvailable_whenReturningBook")
-    void returnBook_shouldHandleBookWithAllCopiesAvailable_whenReturningBook() {
-        // Given
-        Long bookId = 1L;
-        Book fullyAvailableBook = TestDataFactory.createDefaultTechBook();
-        fullyAvailableBook.setId(bookId);
-        fullyAvailableBook.setAvailableCopies(5); // All copies available
-
-        BookResponse fullyAvailableBookResponse = BookResponse.builder()
-            .id(1L)
-            .title("Effective Java")
-            .author("Joshua Bloch")
-            .description("Best practices for Java programming language")
-            .genre(BookGenre.TECHNOLOGY)
-            .availableCopies(5) // All copies available
-            .publicationDate(LocalDate.of(2017, 12, 27))
-            .build();
-
-        when(inventoryService.returnBook(bookId)).thenReturn(fullyAvailableBook);
-        when(bookMapper.toResponse(fullyAvailableBook)).thenReturn(fullyAvailableBookResponse);
-
-        // When
-        ResponseEntity<BookResponse> response = inventoryController.returnBook(bookId);
-
-        // Then
-        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
-        assertThat(response.getBody().getAvailableCopies()).isEqualTo(5);
-
-        verify(inventoryService).returnBook(bookId);
-        verify(bookMapper).toResponse(fullyAvailableBook);
-    }
-
-    // ========== Edge Cases and Error Scenarios ==========
-
-    @Test
-    @DisplayName("borrowBook_shouldHandleServiceException_whenServiceThrowsException")
-    void borrowBook_shouldHandleServiceException_whenServiceThrowsException() {
-        // Given
-        Long bookId = 1L;
-        when(inventoryService.borrowBook(bookId)).thenThrow(new RuntimeException("Book not found"));
-
         // When & Then
-        try {
-            inventoryController.borrowBook(bookId);
-        } catch (RuntimeException e) {
-            assertThat(e.getMessage()).isEqualTo("Book not found");
+            assertThatThrownBy(() -> 
+                inventoryController.borrowBook(INVALID_BOOK_ID, customUserDetails)
+            )
+            .isInstanceOf(ResourceNotFoundException.class)
+            .hasMessageContaining(BOOK_NOT_FOUND);
+
+            verify(inventoryService).borrowBook(VALID_USER_ID, INVALID_BOOK_ID);
+            verify(borrowRecordMapper, never()).toResponse(any(BorrowRecord.class));
         }
 
-        verify(inventoryService).borrowBook(bookId);
-        verify(bookMapper, never()).toResponse(any(Book.class));
-    }
+        @Test
+        @DisplayName("borrowBook_shouldThrowResourceNotFoundException_whenInvalidUserIdProvided")
+        void borrowBook_shouldThrowResourceNotFoundException_whenInvalidUserIdProvided() {
+            // Given
+            given(inventoryService.borrowBook(INVALID_USER_ID, VALID_BOOK_ID))
+                    .willThrow(new ResourceNotFoundException(USER_NOT_FOUND));
 
-    @Test
-    @DisplayName("returnBook_shouldHandleServiceException_whenServiceThrowsException")
-    void returnBook_shouldHandleServiceException_whenServiceThrowsException() {
-        // Given
-        Long bookId = 2L;
-        when(inventoryService.returnBook(bookId)).thenThrow(new RuntimeException("Book not found"));
-
-        // When & Then
-        try {
-            inventoryController.returnBook(bookId);
-        } catch (RuntimeException e) {
-            assertThat(e.getMessage()).isEqualTo("Book not found");
-        }
-
-        verify(inventoryService).returnBook(bookId);
-        verify(bookMapper, never()).toResponse(any(Book.class));
-    }
-
-    @Test
-    @DisplayName("borrowBook_shouldHandleNegativeBookId_whenInvalidIdProvided")
-    void borrowBook_shouldHandleNegativeBookId_whenInvalidIdProvided() {
-        // Given
-        Long invalidBookId = -1L;
-        when(inventoryService.borrowBook(invalidBookId)).thenThrow(new IllegalArgumentException("Invalid book ID"));
-
-        // When & Then
-        try {
-            inventoryController.borrowBook(invalidBookId);
-        } catch (IllegalArgumentException e) {
-            assertThat(e.getMessage()).isEqualTo("Invalid book ID");
-        }
-
-        verify(inventoryService).borrowBook(invalidBookId);
-        verify(bookMapper, never()).toResponse(any(Book.class));
-    }
-
-    @Test
-    @DisplayName("returnBook_shouldHandleNegativeBookId_whenInvalidIdProvided")
-    void returnBook_shouldHandleNegativeBookId_whenInvalidIdProvided() {
-        // Given
-        Long invalidBookId = -1L;
-        when(inventoryService.returnBook(invalidBookId)).thenThrow(new IllegalArgumentException("Invalid book ID"));
-
-        // When & Then
-        try {
-            inventoryController.returnBook(invalidBookId);
-        } catch (IllegalArgumentException e) {
-            assertThat(e.getMessage()).isEqualTo("Invalid book ID");
-        }
-
-        verify(inventoryService).returnBook(invalidBookId);
-        verify(bookMapper, never()).toResponse(any(Book.class));
-    }
-
-    // ========== Business Logic Validation ==========
-
-    @Test
-    @DisplayName("borrowBook_shouldMaintainBookIntegrity_whenBorrowingBook")
-    void borrowBook_shouldMaintainBookIntegrity_whenBorrowingBook() {
-        // Given
-        Long bookId = 1L;
-        BookResponse borrowedBookResponse = BookResponse.builder()
-            .id(1L)
-            .title("Borrowing Test Book")
-            .author("Test Author")
-            .description("Test description")
-            .genre(BookGenre.TECHNOLOGY)
-            .availableCopies(7)
-            .publicationDate(LocalDate.of(2020, 1, 1))
-            .build();
-
-        when(inventoryService.borrowBook(bookId)).thenReturn(borrowedBook);
-        when(bookMapper.toResponse(borrowedBook)).thenReturn(borrowedBookResponse);
-
-        // When
-        ResponseEntity<BookResponse> response = inventoryController.borrowBook(bookId);
-
-        // Then
-        assertThat(response.getBody().getId()).isEqualTo(1L);
-        assertThat(response.getBody().getTitle()).isEqualTo("Borrowing Test Book");
-        assertThat(response.getBody().getAuthor()).isEqualTo("Test Author");
-        assertThat(response.getBody().getGenre()).isEqualTo(BookGenre.TECHNOLOGY);
-        assertThat(response.getBody().getPublicationDate()).isEqualTo(LocalDate.of(2020, 1, 1));
-    }
-
-    @Test
-    @DisplayName("returnBook_shouldMaintainBookIntegrity_whenReturningBook")
-    void returnBook_shouldMaintainBookIntegrity_whenReturningBook() {
-        // Given
-        Long bookId = 2L;
-        BookResponse returnedBookResponse = BookResponse.builder()
-            .id(2L)
-            .title("Return Test Book")
-            .author("Test Author")
-            .description("Test description")
-            .genre(BookGenre.SCIENCE)
-            .availableCopies(3)
-            .publicationDate(LocalDate.of(2020, 1, 1))
-            .build();
-
-        when(inventoryService.returnBook(bookId)).thenReturn(returnedBook);
-        when(bookMapper.toResponse(returnedBook)).thenReturn(returnedBookResponse);
-
-        // When
-        ResponseEntity<BookResponse> response = inventoryController.returnBook(bookId);
-
-        // Then
-        assertThat(response.getBody().getId()).isEqualTo(2L);
-        assertThat(response.getBody().getTitle()).isEqualTo("Return Test Book");
-        assertThat(response.getBody().getAuthor()).isEqualTo("Test Author");
-        assertThat(response.getBody().getGenre()).isEqualTo(BookGenre.SCIENCE);
-        assertThat(response.getBody().getPublicationDate()).isEqualTo(LocalDate.of(2020, 1, 1));
-    }
-
-    // ========== Integration with Dependencies ==========
-
-    @Test
-    @DisplayName("borrowBook_shouldUseAllDependenciesCorrectly_whenProcessingBorrowRequest")
-    void borrowBook_shouldUseAllDependenciesCorrectly_whenProcessingBorrowRequest() {
-        // Given
-        Long bookId = 1L;
-        when(inventoryService.borrowBook(bookId)).thenReturn(borrowedBook);
-        when(bookMapper.toResponse(borrowedBook)).thenReturn(testBookResponse);
-
-        // When
-        inventoryController.borrowBook(bookId);
-
-        // Then
-        verify(inventoryService).borrowBook(bookId);
-        verify(bookMapper).toResponse(borrowedBook);
-        verifyNoMoreInteractions(inventoryService, bookMapper);
-    }
-
-    @Test
-    @DisplayName("returnBook_shouldUseAllDependenciesCorrectly_whenProcessingReturnRequest")
-    void returnBook_shouldUseAllDependenciesCorrectly_whenProcessingReturnRequest() {
-        // Given
-        Long bookId = 2L;
-        when(inventoryService.returnBook(bookId)).thenReturn(returnedBook);
-        when(bookMapper.toResponse(returnedBook)).thenReturn(testBookResponse);
-
-        // When
-        inventoryController.returnBook(bookId);
-
-        // Then
-        verify(inventoryService).returnBook(bookId);
-        verify(bookMapper).toResponse(returnedBook);
-        verifyNoMoreInteractions(inventoryService, bookMapper);
-    }
-
-    // ========== Multiple Operations Tests ==========
-
-    @Test
-    @DisplayName("borrowAndReturnBook_shouldHandleMultipleOperations_whenProcessingSequentialRequests")
-    void borrowAndReturnBook_shouldHandleMultipleOperations_whenProcessingSequentialRequests() {
-        // Given
-        Long bookId = 1L;
+            user.setId(INVALID_USER_ID);
+            invalidUserDetails = TestDataFactory.createCustomUserDetails(user);
+            
+            // When & Then
+            assertThatThrownBy(() -> 
+                    inventoryController.borrowBook(VALID_BOOK_ID, invalidUserDetails)
+            )
+            .isInstanceOf(ResourceNotFoundException.class)
+            .hasMessageContaining(USER_NOT_FOUND);
         
-        // Setup for borrow
-        when(inventoryService.borrowBook(bookId)).thenReturn(borrowedBook);
-        when(bookMapper.toResponse(borrowedBook)).thenReturn(testBookResponse);
+            verify(inventoryService).borrowBook(INVALID_USER_ID, VALID_BOOK_ID);
+            verify(borrowRecordMapper, never()).toResponse(any(BorrowRecord.class));
+        }
+
+        @ParameterizedTest
+        @ValueSource(strings = {NOT_AVAILABLE, ALREADY_BORROWED})
+        @DisplayName("borrowBook_shouldThrowBusinessRuleViolationException_whenNoCopiesAvailableOrBookAlreadyBorrowedByUser")
+        void borrowBook_shouldThrowBusinessRuleViolationException_whenNoCopiesAvailableOrBookAlreadyBorrowedByUser(String exceptionMessage) {
+            // Given
+            given(inventoryService.borrowBook(VALID_USER_ID, VALID_BOOK_ID))
+                    .willThrow(new BusinessRuleViolationException(exceptionMessage));
+
+            // When & Then
+            assertThatThrownBy(() -> 
+                inventoryController.borrowBook(VALID_BOOK_ID, customUserDetails)
+            )
+            .isInstanceOf(BusinessRuleViolationException.class)
+            .hasMessageContaining(exceptionMessage);
+
+            verify(inventoryService).borrowBook(VALID_USER_ID, VALID_BOOK_ID);
+            verify(borrowRecordMapper, never()).toResponse(any(BorrowRecord.class));
+        }
+    }
+
+    @Nested
+    @DisplayName("Return Book Tests")
+    class ReturnBookTests {
+
+        @Test
+        @DisplayName("returnBook_shouldReturnUpdatedBookResponse_whenValidBookIdAndValidUserIdProvided")
+        void returnBook_shouldReturnUpdatedBookResponse_whenValidBookIdAndValidUserIdProvided() {
+            // Arrange
+            when(inventoryService.returnBook(VALID_USER_ID, VALID_BOOK_ID))
+                .thenReturn(borrowRecordMock);
+            when(borrowRecordMapper.toResponse(borrowRecordMock)).thenReturn(returnedBorrowRecordResponseMock);
+
+            // Act
+            ResponseEntity<BorrowRecordResponse> response = 
+                        inventoryController.returnBook(VALID_BOOK_ID, customUserDetails);
+
+            // Assert
+            assertThat(response).isNotNull();
+            assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+            assertThat(response.getBody().getBookId()).isEqualTo(VALID_BOOK_ID);
+            assertThat(response.getBody().getStatus()).isEqualTo(BorrowStatus.RETURNED);
+            assertThat(response.getBody()).isEqualTo(returnedBorrowRecordResponseMock);
+
+            verify(inventoryService).returnBook(VALID_USER_ID, VALID_BOOK_ID);
+            verify(borrowRecordMapper).toResponse(borrowRecordMock);
+        }
+
+        @Test
+        @DisplayName("returnBook_throwResourceNotFoundException_whenInvalidBookIdProvided")
+        void returnBook_shouldCallServiceWithCorrectId_whenBookIdProvided() {
+            // Given
+            given(inventoryService.returnBook(VALID_USER_ID, INVALID_BOOK_ID))
+                    .willThrow(new ResourceNotFoundException(USER_BOOK_NOT_FOUND));
+            
+            // When & Then
+            assertThatThrownBy(() -> 
+                inventoryController.returnBook(INVALID_BOOK_ID, customUserDetails)
+            )
+            .isInstanceOf(ResourceNotFoundException.class)
+            .hasMessageContaining(USER_BOOK_NOT_FOUND);
+
+            verify(inventoryService).returnBook(VALID_USER_ID, INVALID_BOOK_ID);
+            verify(borrowRecordMapper, never()).toResponse(any(BorrowRecord.class));
+        }
+
+        @Test
+        @DisplayName("returnBook_throwResourceNotFoundException_whenUserBookIdProvided")
+        void returnBook_shouldIncreaseAvailableCopies_whenBookReturned() {
+            // Given
+            given(inventoryService.returnBook(INVALID_USER_ID, VALID_BOOK_ID))
+                    .willThrow(new ResourceNotFoundException(USER_BOOK_NOT_FOUND));
+
+            user.setId(INVALID_USER_ID);
+            invalidUserDetails = TestDataFactory.createCustomUserDetails(user);
+            
+            // When & Then
+            assertThatThrownBy(() -> 
+                    inventoryController.returnBook(VALID_BOOK_ID, invalidUserDetails)
+            )
+            .isInstanceOf(ResourceNotFoundException.class)
+            .hasMessageContaining(USER_BOOK_NOT_FOUND);
         
-        // Setup for return
-        when(inventoryService.returnBook(bookId)).thenReturn(returnedBook);
-        when(bookMapper.toResponse(returnedBook)).thenReturn(testBookResponse);
+            verify(inventoryService).returnBook(INVALID_USER_ID, VALID_BOOK_ID);
+            verify(borrowRecordMapper, never()).toResponse(any(BorrowRecord.class));
+        }
 
-        // When
-        ResponseEntity<BookResponse> borrowResponse = inventoryController.borrowBook(bookId);
-        ResponseEntity<BookResponse> returnResponse = inventoryController.returnBook(bookId);
+        @ParameterizedTest
+        @ValueSource(strings = {RETURNED_OR_NOT_BORROWED, ALL_COPIES_AVAILABLE})
+        @DisplayName("returnBook_throwBusinessRuleViolationException_whenBookReturnedByUserOrNeverBorrowedOrAllCopiesAvailable")
+        void returnBook_shouldHandleBookWithAllCopiesAvailable_whenReturningBook(String exceptionMessage) {
+            // Given
+            given(inventoryService.returnBook(VALID_USER_ID, VALID_BOOK_ID))
+                    .willThrow(new BusinessRuleViolationException(exceptionMessage));
 
-        // Then
-        assertThat(borrowResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
-        assertThat(returnResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
+            // When & Then
+            assertThatThrownBy(() -> 
+                inventoryController.returnBook(VALID_BOOK_ID, customUserDetails)
+            )
+            .isInstanceOf(BusinessRuleViolationException.class)
+            .hasMessageContaining(exceptionMessage);
 
-        verify(inventoryService).borrowBook(bookId);
-        verify(inventoryService).returnBook(bookId);
-        verify(bookMapper, times(2)).toResponse(any(Book.class));
+            verify(inventoryService).returnBook(VALID_USER_ID, VALID_BOOK_ID);
+            verify(borrowRecordMapper, never()).toResponse(any(BorrowRecord.class));
+        }
+    }
+
+    @Nested
+    @DisplayName("Check Borrow Status Tests")
+    class CheckBorrowStatusTests {
+
+        @Test
+        @DisplayName("checkBorrowStatus_shouldReturnTrue_whenUserHasBorrowedBook")
+        void checkBorrowStatus_shouldReturnTrue_whenUserHasBorrowedBook() {
+            // Arrange
+            when(inventoryService.hasUserBorrowedBook(VALID_USER_ID, VALID_BOOK_ID))
+                .thenReturn(true);
+
+            // Act
+            ResponseEntity<InventoryController.BorrowStatusResponse> response = 
+                        inventoryController.checkBorrowStatus(VALID_BOOK_ID, customUserDetails);
+
+            // Assert
+            assertThat(response).isNotNull();
+            assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+            assertThat(response.getBody().borrowed()).isTrue();
+
+            verify(inventoryService).hasUserBorrowedBook(VALID_USER_ID, VALID_BOOK_ID);
+        }
+
+        @Test
+        @DisplayName("checkBorrowStatus_shouldReturnFalse_whenUserHasNotBorrowedBook")
+        void checkBorrowStatus_shouldReturnFalse_whenUserHasNotBorrowedBook() {
+            // Arrange
+            when(inventoryService.hasUserBorrowedBook(VALID_USER_ID, VALID_BOOK_ID))
+                .thenReturn(false);
+
+            // Act
+            ResponseEntity<InventoryController.BorrowStatusResponse> response = 
+                        inventoryController.checkBorrowStatus(VALID_BOOK_ID, customUserDetails);
+
+            // Assert
+            assertThat(response).isNotNull();
+            assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+            assertThat(response.getBody().borrowed()).isFalse();
+
+            verify(inventoryService).hasUserBorrowedBook(VALID_USER_ID, VALID_BOOK_ID);
+        }
+
+        @Test
+        @DisplayName("checkBorrowStatus_shouldThrowResourceNotFoundException_whenInvalidUserIdProvided")
+        void checkBorrowStatus_shouldThrowResourceNotFoundException_whenInvalidUserIdProvided() {
+            // Given
+            given(inventoryService.hasUserBorrowedBook(INVALID_USER_ID, VALID_BOOK_ID))
+                    .willThrow(new ResourceNotFoundException(USER_NOT_FOUND));
+
+            user.setId(INVALID_USER_ID);
+            invalidUserDetails = TestDataFactory.createCustomUserDetails(user);
+            
+            // When & Then
+            assertThatThrownBy(() -> 
+                    inventoryController.checkBorrowStatus(VALID_BOOK_ID, invalidUserDetails)
+            )
+            .isInstanceOf(ResourceNotFoundException.class)
+            .hasMessageContaining(USER_NOT_FOUND);
+        
+            verify(inventoryService).hasUserBorrowedBook(INVALID_USER_ID, VALID_BOOK_ID);
+            verifyNoMoreInteractions(inventoryService);
+        }
+    }
+
+    @Nested
+    @DisplayName("User Borrow Records Tests")
+    class UserBorrowRecordsTests {
+
+        @BeforeEach
+        void setup() {
+            books = Arrays.asList(book);
+        }
+
+        @Test
+        @DisplayName("getUserBorrowRecords_shouldReturnPageOfBorrowRecordResponses_whenValidUserIdProvided")
+        void getUserBorrowRecords_shouldReturnPageOfBorrowRecordResponses_whenValidUserIdProvided() {
+            // Arrange
+            pageable = TestDataFactory.createDefaultPageable();
+            borrowRecordPageMock = TestDataFactory.createDefaultBorrowRecordPage(user, books);
+            borrowRecordResponsePageMock = TestDataFactory.createDefaultBorrowRecordResponsePage(user, books);
+
+            when(inventoryService.getUserBorrowRecordsByStatus(VALID_USER_ID, BorrowStatus.BORROWED, pageable))
+                .thenReturn(borrowRecordPageMock);
+
+            when(borrowRecordMapper.toResponse(any(BorrowRecord.class)))
+            .thenAnswer(invocation -> {
+                BorrowRecord record = invocation.getArgument(0);
+                return borrowRecordResponsePageMock.getContent().stream()
+                        .filter(resp -> resp.getId().equals(record.getId()))
+                        .findFirst()
+                        .orElse(borrowRecordResponsePageMock.getContent().get(0));
+            });
+        
+            // Act
+            ResponseEntity<Page<BorrowRecordResponse>> response = 
+                        inventoryController.getUserBorrowRecords(BorrowStatus.BORROWED, 0, 10, customUserDetails);
+
+            // Assert
+            assertThat(response).isNotNull();
+            assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+            assertThat(response.getBody().getTotalElements()).isEqualTo(borrowRecordResponsePageMock.getTotalElements());
+            assertThat(response.getBody()).isEqualTo(borrowRecordResponsePageMock);
+            
+            verify(inventoryService).getUserBorrowRecordsByStatus(VALID_USER_ID, BorrowStatus.BORROWED, pageable);
+            verify(borrowRecordMapper, times(borrowRecordPageMock.getNumberOfElements())).toResponse(any(BorrowRecord.class));
+
+        }
+
+        @Test
+        @DisplayName("getUserBorrowRecords_shouldThrowResourceNotFoundException_whenInvalidUserIdProvided")
+        void getUserBorrowRecords_shouldThrowResourceNotFoundException_whenInvalidUserIdProvided() {
+            // Given
+            pageable = TestDataFactory.createDefaultPageable();
+            given(inventoryService.getUserBorrowRecordsByStatus(INVALID_USER_ID, BorrowStatus.BORROWED, pageable))
+                    .willThrow(new ResourceNotFoundException(USER_NOT_FOUND));
+
+            user.setId(INVALID_USER_ID);
+            invalidUserDetails = TestDataFactory.createCustomUserDetails(user);
+            
+            // When & Then
+            assertThatThrownBy(() -> 
+                    inventoryController.getUserBorrowRecords(BorrowStatus.BORROWED, 0, 10, invalidUserDetails)
+            )
+            .isInstanceOf(ResourceNotFoundException.class)
+            .hasMessageContaining(USER_NOT_FOUND);
+        
+            verify(inventoryService).getUserBorrowRecordsByStatus(INVALID_USER_ID, BorrowStatus.BORROWED, pageable);
+            verifyNoMoreInteractions(inventoryService);
+            verify(borrowRecordMapper, never()).toResponse(any(BorrowRecord.class));
+        }
+
+         @Test
+        @DisplayName("getUserBorrowRecords_shouldReturnEmptyPage_whenUserDoesNotHaveAnyBorrowedBooks")
+        void getUserBorrowRecords_shouldReturnEmptyPage_whenUserDoesNotHaveAnyBorrowedBooks() {
+            // Given
+            pageable = TestDataFactory.createDefaultPageable();
+            given(inventoryService.getUserBorrowRecordsByStatus(VALID_USER_ID, BorrowStatus.BORROWED, pageable))
+                    .willReturn(TestDataFactory.createEmptyBorrowRecordPage());
+
+            // When
+            ResponseEntity<Page<BorrowRecordResponse>> response = inventoryController.getUserBorrowRecords(BorrowStatus.BORROWED, 0, 10, customUserDetails);
+
+            // Then
+            assertThat(response).isNotNull();
+            assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+            assertThat(response.getBody().getTotalElements()).isEqualTo(0);
+            assertThat(response.getBody().getContent()).isEmpty();
+
+            verify(inventoryService).getUserBorrowRecordsByStatus(VALID_USER_ID, BorrowStatus.BORROWED, pageable);
+            verify(borrowRecordMapper, never()).toResponse(any(BorrowRecord.class));
+        }
+        
+        @Test
+        @DisplayName("getUserBorrowRecords_shouldReturnPageOfBorrowRecordResponses_whenPageAndSizeProvided")
+        void getUserBorrowRecords_shouldReturnPageOfBorrowRecordResponses_whenPageAndSizeProvided() {
+            // Given
+            pageable = TestDataFactory.createPageable(1, 15);
+            borrowRecordPageMock = TestDataFactory.createCustomBorrowRecordPage(user, books, pageable.getPageNumber(), pageable.getPageSize());
+            borrowRecordResponsePageMock = TestDataFactory.createCustomBorrowRecordResponsePage(user, books, pageable.getPageNumber(), pageable.getPageSize());
+            given(inventoryService.getUserBorrowRecordsByStatus(VALID_USER_ID, BorrowStatus.BORROWED, pageable))
+                    .willReturn(borrowRecordPageMock);
+
+             when(borrowRecordMapper.toResponse(any(BorrowRecord.class)))
+            .thenAnswer(invocation -> {
+                BorrowRecord record = invocation.getArgument(0);
+                return borrowRecordResponsePageMock.getContent().stream()
+                        .filter(resp -> resp.getId().equals(record.getId()))
+                        .findFirst()
+                        .orElse(borrowRecordResponsePageMock.getContent().get(0));
+            });
+
+            // When
+            ResponseEntity<Page<BorrowRecordResponse>> response = inventoryController.getUserBorrowRecords(BorrowStatus.BORROWED, pageable.getPageNumber(), pageable.getPageSize(), customUserDetails);
+
+            // Then
+            assertThat(response).isNotNull();
+            assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+            assertThat(response.getBody().getSize()).isEqualTo(pageable.getPageSize());
+            assertThat(response.getBody().getNumber()).isEqualTo(pageable.getPageNumber());
+            assertThat(response.getBody().getTotalElements()).isEqualTo(borrowRecordResponsePageMock.getTotalElements());
+            assertThat(response.getBody()).isEqualTo(borrowRecordResponsePageMock);
+
+            verify(inventoryService).getUserBorrowRecordsByStatus(VALID_USER_ID, BorrowStatus.BORROWED, pageable);
+            verify(borrowRecordMapper, times(borrowRecordPageMock.getNumberOfElements())).toResponse(any(BorrowRecord.class));
+        }
     }
 }
