@@ -35,6 +35,7 @@ public class JwtTokenService {
     public String generateToken(CustomUserDetails user) {
         Map<String, Object> claims = new HashMap<>();
         claims.put("role", user.getRole().name());
+        claims.put("userId", user.getId());
         return buildToken(claims, user.getEmail());
     }
 
@@ -58,6 +59,15 @@ public class JwtTokenService {
 
     public String extractUsername(String token) {
         return extractClaim(token, Claims::getSubject);
+    }
+
+    /**
+     * Extract user ID from JWT token
+     * @param token JWT token string
+     * @return User ID as Long
+     */
+    public Long extractUserId(String token) {
+        return extractClaim(token, claims -> claims.get("userId", Long.class));
     }
 
     public Date extractExpiration(String token) {
