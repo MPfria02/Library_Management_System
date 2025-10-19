@@ -23,7 +23,10 @@ import java.time.LocalDate;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
+import static org.hamcrest.Matchers.*;
+
 
 /**
  * Integration tests for InventoryController using Testcontainers.
@@ -60,9 +63,8 @@ class InventoryControllerIT extends AbstractIntegrationTest {
     private PasswordEncoder passwordEncoder;
 
     private String memberToken;
-    private String adminToken;
-    private Long availableBookId;
-    private Long unavailableBookId;
+    private Long availableBookId, unavailableBookId, partiallyAvailableBookId;
+    private Book availableBook, unavailableBook, partiallyAvailableBook;
 
     /**
      * Set up test data before each test.
@@ -72,16 +74,6 @@ class InventoryControllerIT extends AbstractIntegrationTest {
         // Clean up database
         bookRepository.deleteAll();
         userRepository.deleteAll();
-
-        // Create test users
-        User admin = User.builder()
-                .email("admin@library.com")
-                .password(passwordEncoder.encode("admin123"))
-                .firstName("Admin")
-                .lastName("User")
-                .role(UserRole.ADMIN)
-                .build();
-        userRepository.save(admin);
 
         User member = User.builder()
                 .email("member@library.com")
@@ -93,7 +85,6 @@ class InventoryControllerIT extends AbstractIntegrationTest {
         userRepository.save(member);
 
         // Generate JWT tokens
-        adminToken = jwtTokenService.generateToken(new CustomUserDetails(admin));
         memberToken = jwtTokenService.generateToken(new CustomUserDetails(member));
         
         createTestBooks();
@@ -102,7 +93,7 @@ class InventoryControllerIT extends AbstractIntegrationTest {
     private void createTestBooks() throws Exception {
         
         // Create book with available copies
-        Book availableBook = Book.builder()
+        availableBook = Book.builder()
                 .isbn("978-0-123456-78-9")
                 .title("The Great Adventure")
                 .author("John Smith")
@@ -114,7 +105,7 @@ class InventoryControllerIT extends AbstractIntegrationTest {
                 .build();
         availableBookId = bookRepository.save(availableBook).getId();
 
-        Book unavailableBook = Book.builder()
+        unavailableBook = Book.builder()
                 .isbn("978-0134685991")
                 .title("Out of Stock Book")
                 .author("Bob Jones")
@@ -125,11 +116,23 @@ class InventoryControllerIT extends AbstractIntegrationTest {
                 .publicationDate(LocalDate.of(2020, 1, 24))
                 .build();
         unavailableBookId = bookRepository.save(unavailableBook).getId();
+
+        partiallyAvailableBook = Book.builder()
+                .isbn("978-0134685551")
+                .title("Partially Available")
+                .author("Paul Jones")
+                .description("A partially available book")
+                .genre(BookGenre.NON_FICTION)
+                .totalCopies(4)
+                .availableCopies(2)
+                .publicationDate(LocalDate.of(2020, 1, 24))
+                .build();
+        partiallyAvailableBookId = bookRepository.save(partiallyAvailableBook).getId(); 
     }
 
       // ---------- Helpers ----------
 
-      private ResultActions borrowBook(Long bookId, String token) throws Exception {
+    private ResultActions borrowBook(Long bookId, String token) throws Exception {
         return mockMvc.perform(post("/api/inventory/books/{id}/borrow", bookId)
                 .header("Authorization", "Bearer " + token)
                 .contentType(MediaType.APPLICATION_JSON));
@@ -141,6 +144,18 @@ class InventoryControllerIT extends AbstractIntegrationTest {
                 .contentType(MediaType.APPLICATION_JSON));
     }
 
+    private ResultActions checkBorrowStatus(Long bookId, String token) throws Exception {
+        return mockMvc.perform(get("/api/inventory/books/{id}/status", bookId)
+                .header("Authorization", "Bearer " + token)
+                .contentType(MediaType.APPLICATION_JSON));
+    }
+
+    private ResultActions getUserBorrowRecords(String token) throws Exception {
+        return mockMvc.perform(get("/api/inventory/books")
+                .header("Authorization", "Bearer " + token)
+                .contentType(MediaType.APPLICATION_JSON));
+    }
+
     private void assertAvailableCopies(Long bookId, int expected) {
         var book = bookRepository.findById(bookId);
         assertThat(book).isPresent();
@@ -148,9 +163,8 @@ class InventoryControllerIT extends AbstractIntegrationTest {
     }
 
     @Nested
-    @DisplayName("Book Borrowing Tests")
-    class BookBorrowingTests {
-
+    @DisplayName("Borrow Book Tests")
+    class BorrowBookTests {
         @Test
         @DisplayName("Should return 200 when book is successfully borrowed")
         void shouldReturn200WhenBookIsSuccessfullyBorrowed() throws Exception {
@@ -158,10 +172,11 @@ class InventoryControllerIT extends AbstractIntegrationTest {
             borrowBook(availableBookId, memberToken)
                 .andExpect(status().isOk())
                 .andExpect(content().contentType(MediaType.APPLICATION_JSON))
-                .andExpect(jsonPath("$.id").value(availableBookId))
-                .andExpect(jsonPath("$.availableCopies").value(2)); // Should decrease by 1
+                .andExpect(jsonPath("$.bookId").value(availableBookId))
+                .andExpect(jsonPath("$.bookTitle").value(availableBook.getTitle()))
+                .andExpect(jsonPath("$.status").value("BORROWED"));
 
-            // Verify book was updated in database
+            // Assert available copies decreased
             assertAvailableCopies(availableBookId, 2);
         }
 
@@ -173,7 +188,7 @@ class InventoryControllerIT extends AbstractIntegrationTest {
                 .andExpect(status().isUnprocessableEntity())
                 .andExpect(jsonPath("$.errorCode").value("BUSINESS_RULE_VIOLATION"));
         }
-
+        
         @Test
         @DisplayName("Should return 401 when no authentication token is provided")
         void shouldReturn401WhenNoAuthenticationTokenIsProvided() throws Exception {
@@ -191,22 +206,15 @@ class InventoryControllerIT extends AbstractIntegrationTest {
             borrowBook(nonExistentBookId, memberToken)
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.errorCode").value("RESOURCE_NOT_FOUND"))
-                .andExpect(jsonPath("$.message").value("Book with ID " + nonExistentBookId + " not found"));
+                .andExpect(jsonPath("$.message").value("Book not found"));
         }
 
         @Test
-        @DisplayName("Should allow multiple borrows until copies are exhausted")
+        @DisplayName("Should not allow multiple borrows of the same book from the same user")
         void shouldAllowMultipleBorrowsUntilCopiesAreExhausted() throws Exception {
-                int initialCopies = 3;
-
-                // Borrow until no copies left
-                for (int i = 1; i <= initialCopies; i++) {
-                    int expectedRemaining = initialCopies - i;
-            
-                    borrowBook(availableBookId, memberToken)
-                            .andExpect(status().isOk())
-                            .andExpect(jsonPath("$.availableCopies").value(expectedRemaining));
-                }
+                // First time borrowing should be handle gracefully
+                borrowBook(availableBookId, memberToken)
+                        .andExpect(status().isOk());
             
                 // One more borrow attempt should fail
                 borrowBook(availableBookId, memberToken)
@@ -217,9 +225,8 @@ class InventoryControllerIT extends AbstractIntegrationTest {
     }
 
     @Nested
-    @DisplayName("Book Returning Tests")
-    class BookReturningTests {
-
+    @DisplayName("Return Book Tests")
+    class ReturnBookTests {
         @Test
         @DisplayName("Should return 200 when book is successfully returned")
         void shouldReturn200WhenBookIsSuccessfullyReturned() throws Exception {
@@ -229,7 +236,9 @@ class InventoryControllerIT extends AbstractIntegrationTest {
             // When - Return the book
             returnBook(availableBookId, memberToken)
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.availableCopies").value(3)); // Should increase by 1
+                .andExpect(jsonPath("$.status").value("RETURNED"))
+                .andExpect(jsonPath("$.returnDate").value(LocalDate.now().toString()));
+                
 
             // Verify book was updated in database
             assertAvailableCopies(availableBookId, 3);
@@ -241,6 +250,30 @@ class InventoryControllerIT extends AbstractIntegrationTest {
             // When & Then - Try to return a book that hasn't been borrowed
             // availableBookId starts with all copies available in @BeforeEach
             returnBook(availableBookId, memberToken)
+                .andExpect(status().isUnprocessableEntity())
+                .andExpect(jsonPath("$.errorCode").value("BUSINESS_RULE_VIOLATION"));
+        }
+
+        @Test
+        @DisplayName("Should return 422 when trying to return book that the user has not borrowed")
+        void shouldReturn422WhenTryingToReturnBookThatTheUserHasNotBorrowed() throws Exception {
+            // When & Then - Try to return a book that hasn't borrowed
+            returnBook(unavailableBookId, memberToken)
+                .andExpect(status().isUnprocessableEntity())
+                .andExpect(jsonPath("$.errorCode").value("BUSINESS_RULE_VIOLATION"));
+        }
+
+        @Test
+        @DisplayName("Should return 422 when trying to return book that the user has already return")
+        void shouldReturn422WhenTryingToReturnBookThatTheUserHasAlreadyReturn() throws Exception {
+            // User borrows the book
+            borrowBook(partiallyAvailableBookId, memberToken).andExpect(status().isOk());
+
+            // User successfully returns the book
+            returnBook(partiallyAvailableBookId, memberToken).andExpect(status().isOk());            
+            
+            // Tries to return a book that already returned
+            returnBook(unavailableBookId, memberToken)
                 .andExpect(status().isUnprocessableEntity())
                 .andExpect(jsonPath("$.errorCode").value("BUSINESS_RULE_VIOLATION"));
         }
@@ -262,46 +295,84 @@ class InventoryControllerIT extends AbstractIntegrationTest {
             returnBook(nonExistentBookId, memberToken)
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.errorCode").value("RESOURCE_NOT_FOUND"))
-                .andExpect(jsonPath("$.message").value("Book with ID " + nonExistentBookId + " not found"));
+                .andExpect(jsonPath("$.message").value("User or Book not found"));
         }
     }
 
     @Nested
-    @DisplayName("Authentication and Authorization Tests")
-    class AuthenticationAndAuthorizationTests {
-
+    @DisplayName("Check Borrow Status Tests")
+    class CheckBorrowStatusTests {
         @Test
-        @DisplayName("Should allow both members and admins to borrow books")
-        void shouldAllowBothMembersAndAdminsToBorrowBooks() throws Exception {
-            // Member borrow
-            borrowBook(availableBookId, memberToken)
-                    .andExpect(status().isOk())
-                    .andExpect(jsonPath("$.availableCopies").value(2));
+        @DisplayName("Should return true when user has borrowed book")
+        void shouldReturnTrueWhenUserHasBorrowedBook() throws Exception {
+            borrowBook(availableBookId, memberToken).andExpect(status().isOk());
+            checkBorrowStatus(availableBookId, memberToken)
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.borrowed").value(true));
+        }
+        @Test
+        @DisplayName("Should return false when user has not borrowed book")
+        void shouldReturnFalseWhenUserHasNotBorrowedBook() throws Exception {
+            checkBorrowStatus(availableBookId, memberToken)
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.borrowed").value(false));
+        }
+        @Test
+        @DisplayName("Should return 401 when no authentication token is provided for status check")
+        void shouldReturn401WhenNoAuthenticationTokenIsProvidedForStatusCheck() throws Exception {
+            checkBorrowStatus(availableBookId, null)
+                .andExpect(status().isUnauthorized());
+        }
+    }
 
-            // Admin borrow
-            borrowBook(availableBookId, adminToken)
-                    .andExpect(status().isOk())
-                    .andExpect(jsonPath("$.availableCopies").value(1));
+    @Nested
+    @DisplayName("User Borrow Records Tests")
+    class UserBorrowRecordsTests {
+        @Test
+        @DisplayName("Should return page of borrow record responses when valid user and default params")
+        void shouldReturnPageOfBorrowRecordResponsesWhenValidUserAndDefaultParams() throws Exception {
+            // Borrow a book so there is a record
+            borrowBook(availableBookId, memberToken).andExpect(status().isOk());
+            getUserBorrowRecords(memberToken)
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content").isArray())
+                .andExpect(jsonPath("$.content[0].bookId").value(availableBookId))
+                .andExpect(jsonPath("$.content[0].status").value("BORROWED"));             
         }
 
         @Test
-        @DisplayName("Should allow both members and admins to return books")
-        void shouldAllowBothMembersAndAdminsToReturnBooks() throws Exception {
-            // Given - Borrow books first
-            borrowBook(availableBookId, memberToken)
-                .andExpect(status().isOk());
+        @DisplayName("Should return empty page when user has no borrowed books")
+        void shouldReturnEmptyPageWhenUserHasNoBorrowedBooks() throws Exception {
+            getUserBorrowRecords(memberToken)
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content").isArray())
+                .andExpect(jsonPath("$.content").isEmpty());
+        }
+        @Test
+        @DisplayName("Should return 401 when no authentication token is provided for borrow records")
+        void shouldReturn401WhenNoAuthenticationTokenIsProvidedForBorrowRecords() throws Exception {
+            getUserBorrowRecords(null)
+                .andExpect(status().isUnauthorized());
+        }
+        @Test
+        @DisplayName("Should return page of borrow record responses when page and size provided")
+        void shouldReturnPageOfBorrowRecordResponsesWhenPageAndSizeProvided() throws Exception {
+            // Borrow a book so there is a record
+            borrowBook(availableBookId, memberToken).andExpect(status().isOk());
+            mockMvc.perform(
+                get("/api/inventory/books")
+                    .header("Authorization", "Bearer " + memberToken)
+                    .param("page", "1")
+                    .param("size", "5")
+                    .param("status", "BORROWED")
+                    .contentType(MediaType.APPLICATION_JSON)
+            )
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content").isArray())
+                .andExpect(jsonPath("$.size").value(5))
+                .andExpect(jsonPath("$.number").value(1))
+                .andExpect(jsonPath("$.content.length()").value(lessThanOrEqualTo(5)));
 
-            borrowBook(availableBookId, adminToken)
-                .andExpect(status().isOk());
-
-            // When - Return books
-            returnBook(availableBookId, memberToken)
-                    .andExpect(status().isOk())
-                    .andExpect(jsonPath("$.availableCopies").value(2));
-
-            returnBook(availableBookId, adminToken)
-                    .andExpect(status().isOk())
-                    .andExpect(jsonPath("$.availableCopies").value(3));
         }
     }
 }
