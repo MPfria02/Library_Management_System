@@ -1,40 +1,79 @@
 package com.librarymanager.backend.controller;
 
-import com.librarymanager.backend.dto.response.BookResponse;
+import com.librarymanager.backend.dto.response.BorrowRecordResponse;
 import com.librarymanager.backend.entity.Book;
-import com.librarymanager.backend.entity.BookGenre;
+import com.librarymanager.backend.entity.BorrowRecord;
+import com.librarymanager.backend.entity.BorrowStatus;
+import com.librarymanager.backend.entity.User;
 import com.librarymanager.backend.exception.BusinessRuleViolationException;
 import com.librarymanager.backend.exception.ResourceNotFoundException;
-import com.librarymanager.backend.mapper.BookMapper;
+import com.librarymanager.backend.mapper.BorrowRecordMapper;
+import com.librarymanager.backend.security.CustomUserDetails;
 import com.librarymanager.backend.security.JwtAuthenticationFilter;
 import com.librarymanager.backend.service.InventoryService;
+import com.librarymanager.backend.testutil.TestDataFactory;
+
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
 import org.springframework.http.MediaType;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.ResultActions;
 
 import java.time.LocalDate;
+import java.util.List;
 
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.BDDMockito.given;
-import static org.mockito.BDDMockito.willThrow;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.*;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
+import org.springframework.data.domain.Pageable;
 
-/**
- * Slice tests for InventoryController using @WebMvcTest.
- * 
- * Tests the web layer in isolation, focusing on HTTP behavior,
- * request/response mapping, and exception handling for inventory operations.
- * 
- * @author Marcel Pulido
- */
+// import static org.mockito.ArgumentMatchers.any;
+// import static org.mockito.BDDMockito.given;
+// import static org.mockito.BDDMockito.willThrow;
+// import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+// import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
+
+// /**
+//  * Slice tests for InventoryController using @WebMvcTest.
+//  * 
+//  * Tests the web layer in isolation, focusing on HTTP behavior,
+//  * request/response mapping, and exception handling for inventory operations.
+//  * 
+//  * @author Marcel Pulido
+//  */
 @WebMvcTest(InventoryController.class)
 @AutoConfigureMockMvc(addFilters = false)
-public class InventoryControllerSliceTest {
+@DisplayName("InventoryController Slice Tests")
+class InventoryControllerSliceTest {
+
+    private static final String BASE_URL = "/api/inventory/books";
+
+    private static final String NOT_AVAILABLE = "Book has no available copies";
+    private static final String BOOK_NOT_FOUND = "Book not found";
+    private static final String USER_NOT_FOUND = "User not found";
+    private static final String ALREADY_BORROWED = "You have already borrowed this book";
+    private static final String RETURNED_OR_NOT_BORROWED = "You have not borrowed this book or it has already been returned";
+    private static final String ALL_COPIES_AVAILABLE = "Cannot return book. All copies are already available";
+
+    private static final Long VALID_USER_ID = 1L;
+    private static final Long VALID_BOOK_ID = 1L;
+    private static final Long INVALID_BOOK_ID = 999L;
+    private static final Long VALID_BORROW_RECORD_ID = 1L;
 
     @Autowired
     private MockMvc mockMvc;
@@ -43,314 +82,417 @@ public class InventoryControllerSliceTest {
     private InventoryService inventoryService;
 
     @MockitoBean
-    private JwtAuthenticationFilter jwtAuthenticationFilter;
+    private BorrowRecordMapper borrowRecordMapper;
 
     @MockitoBean
-    private BookMapper bookMapper;
+    private JwtAuthenticationFilter jwtAuthenticationFilter;
 
-    // ========== Borrow Book Tests ==========
+    private User testUser;
+    private CustomUserDetails userDetails;
+    private Book testBook;
+    private BorrowRecord activeBorrowRecord;
+    private BorrowRecordResponse borrowRecordResponse;
 
-    @Test
-    public void shouldReturn200WhenBookIsSuccessfullyBorrowed() throws Exception {
-        // Arrange
-        Book borrowedBook = new Book();
-        borrowedBook.setId(1L);
-        borrowedBook.setTitle("The Great Book");
-        borrowedBook.setAuthor("John Author");
-        borrowedBook.setGenre(BookGenre.FICTION);
-        borrowedBook.setAvailableCopies(2); // Reduced from 3 to 2 after borrowing
-        borrowedBook.setPublicationDate(LocalDate.of(2023, 1, 1));
-        
-        BookResponse response = BookResponse.builder()
-            .id(1L)
-            .title("The Great Book")
-            .author("John Author")
-            .genre(BookGenre.FICTION)
-            .availableCopies(2)
-            .publicationDate(LocalDate.of(2023, 1, 1))
-            .build();
+    @BeforeEach
+    void setUp() {
+        testUser = TestDataFactory.createDefaultMemberUser();
+        testUser.setId(VALID_USER_ID);
+        userDetails = TestDataFactory.createCustomUserDetails(testUser);
 
-        given(inventoryService.borrowBook(1L)).willReturn(borrowedBook);
-        given(bookMapper.toResponse(any(Book.class))).willReturn(response);
+        testBook = TestDataFactory.createBookForBorrowing();
+        testBook.setId(VALID_BOOK_ID);
 
-        // Act & Assert
-        mockMvc.perform(post("/api/inventory/books/1/borrow")
-                .contentType(MediaType.APPLICATION_JSON))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.id").value(1))
-                .andExpect(jsonPath("$.title").value("The Great Book"))
-                .andExpect(jsonPath("$.author").value("John Author"))
-                .andExpect(jsonPath("$.genre").value("FICTION"))
-                .andExpect(jsonPath("$.availableCopies").value(2))
-                .andExpect(jsonPath("$.publicationDate").value("2023-01-01"));
+        activeBorrowRecord = TestDataFactory.createBorrowRecord(testUser, testBook);
+        activeBorrowRecord.setId(VALID_BORROW_RECORD_ID);
+        borrowRecordResponse = TestDataFactory.createBorrowRecordResponse(activeBorrowRecord);
+
+        // Mock authentication
+        Authentication auth = mock(Authentication.class);
+        when(auth.getPrincipal()).thenReturn(userDetails);
+        SecurityContextHolder.getContext().setAuthentication(auth);
     }
 
-    @Test
-    public void shouldReturn404WhenBorrowingNonExistentBook() throws Exception {
-        // Arrange
-        willThrow(new ResourceNotFoundException("Book not found with ID: 999", "BOOK_NOT_FOUND"))
-                .given(inventoryService).borrowBook(999L);
-
-        // Act & Assert
-        mockMvc.perform(post("/api/inventory/books/999/borrow")
-                .contentType(MediaType.APPLICATION_JSON))
-                .andExpect(status().isNotFound())
-                .andExpect(jsonPath("$.status").value(404))
-                .andExpect(jsonPath("$.error").value("Not Found"))
-                .andExpect(jsonPath("$.message").value("Book not found with ID: 999"))
-                .andExpect(jsonPath("$.errorCode").value("RESOURCE_NOT_FOUND"));
+    // ===================== Helpers =====================
+    private ResultActions borrowBook(Long bookId) throws Exception {
+        return mockMvc.perform(post(BASE_URL + "/{id}/borrow", bookId)
+                .contentType(MediaType.APPLICATION_JSON));
     }
 
-    @Test
-    public void shouldReturn422WhenBorrowingUnavailableBook() throws Exception {
-        // Arrange
-        willThrow(new BusinessRuleViolationException("Book is not available for borrowing", "BOOK_NOT_AVAILABLE"))
-                .given(inventoryService).borrowBook(1L);
-
-        // Act & Assert
-        mockMvc.perform(post("/api/inventory/books/1/borrow")
-                .contentType(MediaType.APPLICATION_JSON))
-                .andExpect(status().isUnprocessableEntity())
-                .andExpect(jsonPath("$.status").value(422))
-                .andExpect(jsonPath("$.error").value("Unprocessable Entity"))
-                .andExpect(jsonPath("$.message").value("Book is not available for borrowing"))
-                .andExpect(jsonPath("$.errorCode").value("BUSINESS_RULE_VIOLATION"));
+    private ResultActions returnBook(Long bookId) throws Exception {
+        return mockMvc.perform(post(BASE_URL + "/{id}/return", bookId)
+                .contentType(MediaType.APPLICATION_JSON));
     }
 
-    @Test
-    public void shouldReturn422WhenBorrowingBookWithZeroAvailableCopies() throws Exception {
-        // Arrange
-        willThrow(new BusinessRuleViolationException("No copies available for borrowing", "NO_COPIES_AVAILABLE"))
-                .given(inventoryService).borrowBook(1L);
-
-        // Act & Assert
-        mockMvc.perform(post("/api/inventory/books/1/borrow")
-                .contentType(MediaType.APPLICATION_JSON))
-                .andExpect(status().isUnprocessableEntity())
-                .andExpect(jsonPath("$.status").value(422))
-                .andExpect(jsonPath("$.error").value("Unprocessable Entity"))
-                .andExpect(jsonPath("$.message").value("No copies available for borrowing"))
-                .andExpect(jsonPath("$.errorCode").value("BUSINESS_RULE_VIOLATION"));
+    private ResultActions checkBorrowStatus(Long bookId) throws Exception {
+        return mockMvc.perform(get(BASE_URL + "/{id}/status", bookId)
+                .contentType(MediaType.APPLICATION_JSON));
     }
 
-    @Test
-    public void shouldReturn400WhenBorrowingWithInvalidBookId() throws Exception {
-        // Act & Assert
-        mockMvc.perform(post("/api/inventory/books/invalid/borrow")
-                .contentType(MediaType.APPLICATION_JSON))
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.status").value(400))
-                .andExpect(jsonPath("$.error").value("Bad Request"))
-                .andExpect(jsonPath("$.errorCode").value("TYPE_MISMATCH"));
+    private ResultActions getUserBorrowRecords() throws Exception {
+        return mockMvc.perform(get(BASE_URL)
+                .contentType(MediaType.APPLICATION_JSON));
     }
 
-    // ========== Return Book Tests ==========
-
-    @Test
-    public void shouldReturn200WhenBookIsSuccessfullyReturned() throws Exception {
-        // Arrange
-        Book returnedBook = new Book();
-        returnedBook.setId(1L);
-        returnedBook.setTitle("The Great Book");
-        returnedBook.setAuthor("John Author");
-        returnedBook.setGenre(BookGenre.FICTION);
-        returnedBook.setAvailableCopies(3); // Increased from 2 to 3 after returning
-        returnedBook.setPublicationDate(LocalDate.of(2023, 1, 1));
-        
-        BookResponse response = BookResponse.builder()
-            .id(1L)
-            .title("The Great Book")
-            .author("John Author")
-            .genre(BookGenre.FICTION)
-            .availableCopies(3)
-            .publicationDate(LocalDate.of(2023, 1, 1))
-            .build();
-
-        given(inventoryService.returnBook(1L)).willReturn(returnedBook);
-        given(bookMapper.toResponse(any(Book.class))).willReturn(response);
-
-        // Act & Assert
-        mockMvc.perform(post("/api/inventory/books/1/return")
-                .contentType(MediaType.APPLICATION_JSON))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.id").value(1))
-                .andExpect(jsonPath("$.title").value("The Great Book"))
-                .andExpect(jsonPath("$.author").value("John Author"))
-                .andExpect(jsonPath("$.genre").value("FICTION"))
-                .andExpect(jsonPath("$.availableCopies").value(3))
-                .andExpect(jsonPath("$.publicationDate").value("2023-01-01"));
+    private ResultActions getUserBorrowRecordsByStatus(String status) throws Exception {
+        return mockMvc.perform(get(BASE_URL)
+                .param("status", status)
+                .contentType(MediaType.APPLICATION_JSON));
     }
 
-    @Test
-    public void shouldReturn404WhenReturningNonExistentBook() throws Exception {
-        // Arrange
-        willThrow(new ResourceNotFoundException("Book not found with ID: 999", "BOOK_NOT_FOUND"))
-                .given(inventoryService).returnBook(999L);
-
-        // Act & Assert
-        mockMvc.perform(post("/api/inventory/books/999/return")
-                .contentType(MediaType.APPLICATION_JSON))
-                .andExpect(status().isNotFound())
-                .andExpect(jsonPath("$.status").value(404))
-                .andExpect(jsonPath("$.error").value("Not Found"))
-                .andExpect(jsonPath("$.message").value("Book not found with ID: 999"))
-                .andExpect(jsonPath("$.errorCode").value("RESOURCE_NOT_FOUND"));
+    private ResultActions getUserBorrowRecordsWithPagination(int page, int size) throws Exception {
+        return mockMvc.perform(get(BASE_URL)
+                .param("page", String.valueOf(page))
+                .param("size", String.valueOf(size))
+                .contentType(MediaType.APPLICATION_JSON));
     }
 
-    @Test
-    public void shouldReturn422WhenReturningBookThatWasNotBorrowed() throws Exception {
-        // Arrange
-        willThrow(new BusinessRuleViolationException("Book was not borrowed and cannot be returned", "BOOK_NOT_BORROWED"))
-                .given(inventoryService).returnBook(1L);
+    @Nested
+    @DisplayName("Borrow Book Tests")
+    class BorrowBookTests {
 
-        // Act & Assert
-        mockMvc.perform(post("/api/inventory/books/1/return")
-                .contentType(MediaType.APPLICATION_JSON))
-                .andExpect(status().isUnprocessableEntity())
-                .andExpect(jsonPath("$.status").value(422))
-                .andExpect(jsonPath("$.error").value("Unprocessable Entity"))
-                .andExpect(jsonPath("$.message").value("Book was not borrowed and cannot be returned"))
-                .andExpect(jsonPath("$.errorCode").value("BUSINESS_RULE_VIOLATION"));
+        @Test
+        @DisplayName("Should return 200 and borrow record when book is successfully borrowed")
+        void borrowBook_ValidRequest_Returns200AndBorrowRecord() throws Exception {
+            // Given
+            when(inventoryService.borrowBook(VALID_USER_ID, VALID_BOOK_ID))
+                .thenReturn(activeBorrowRecord);
+            when(borrowRecordMapper.toResponse(activeBorrowRecord))
+                .thenReturn(borrowRecordResponse);
+
+            // When & Then
+            borrowBook(VALID_BOOK_ID)
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.id").value(activeBorrowRecord.getId()))
+                    .andExpect(jsonPath("$.bookId").value(VALID_BOOK_ID))
+                    .andExpect(jsonPath("$.status").value("BORROWED"));
+
+            verify(inventoryService).borrowBook(VALID_USER_ID, VALID_BOOK_ID);
+            verify(borrowRecordMapper).toResponse(activeBorrowRecord);
+        }
+
+        @Test
+        @DisplayName("Should return 404 when book is not found")
+        void borrowBook_BookNotFound_Returns404() throws Exception {
+            // Given
+            when(inventoryService.borrowBook(VALID_USER_ID, INVALID_BOOK_ID))
+                .thenThrow(new ResourceNotFoundException(BOOK_NOT_FOUND));
+
+            // When & Then
+            borrowBook(INVALID_BOOK_ID)
+                    .andExpect(status().isNotFound())
+                    .andExpect(jsonPath("$.message").value(BOOK_NOT_FOUND));
+
+            verify(inventoryService).borrowBook(VALID_USER_ID, INVALID_BOOK_ID);
+            verify(borrowRecordMapper, never()).toResponse(any());
+        }
+
+        @ParameterizedTest
+        @ValueSource(strings = {NOT_AVAILABLE, ALREADY_BORROWED})
+        @DisplayName("Should return 422 when book cannot be borrowed")
+        void borrowBook_CannotBorrow_Returns422(String errorMessage) throws Exception {
+            // Given
+            when(inventoryService.borrowBook(VALID_USER_ID, VALID_BOOK_ID))
+                .thenThrow(new BusinessRuleViolationException(errorMessage));
+
+            // When & Then
+            borrowBook(VALID_BOOK_ID)
+                    .andExpect(status().isUnprocessableEntity())
+                    .andExpect(jsonPath("$.message").value(errorMessage));
+
+            verify(inventoryService).borrowBook(VALID_USER_ID, VALID_BOOK_ID);
+            verify(borrowRecordMapper, never()).toResponse(any());
+        }
+
+        @Test
+        @DisplayName("Should return 400 when book ID is invalid")
+        void borrowBook_InvalidBookId_Returns400() throws Exception {
+            // When & Then
+            mockMvc.perform(post("/api/inventory/books/invalid/borrow")
+                    .contentType(MediaType.APPLICATION_JSON))
+                    .andExpect(status().isBadRequest());
+
+            verify(inventoryService, never()).borrowBook(any(), any());
+            verify(borrowRecordMapper, never()).toResponse(any());
+        }
     }
 
-    @Test
-    public void shouldReturn422WhenReturningBookWithAllCopiesAvailable() throws Exception {
-        // Arrange
-        willThrow(new BusinessRuleViolationException("All copies are already available", "ALL_COPIES_AVAILABLE"))
-                .given(inventoryService).returnBook(1L);
+    @Nested
+    @DisplayName("Return Book Tests")
+    class ReturnBookTests {
 
-        // Act & Assert
-        mockMvc.perform(post("/api/inventory/books/1/return")
-                .contentType(MediaType.APPLICATION_JSON))
-                .andExpect(status().isUnprocessableEntity())
-                .andExpect(jsonPath("$.status").value(422))
-                .andExpect(jsonPath("$.error").value("Unprocessable Entity"))
-                .andExpect(jsonPath("$.message").value("All copies are already available"))
-                .andExpect(jsonPath("$.errorCode").value("BUSINESS_RULE_VIOLATION"));
+        @Test
+        @DisplayName("Should return 200 and updated borrow record when book is successfully returned")
+        void returnBook_ValidRequest_Returns200AndBorrowRecord() throws Exception {
+            // Given
+            BorrowRecord returnedRecord = TestDataFactory.createReturnedBorrowRecord(activeBorrowRecord);
+            BorrowRecordResponse returnedResponse = TestDataFactory.createReturnedBorrowRecordResponse(returnedRecord);
+
+            when(inventoryService.returnBook(VALID_USER_ID, VALID_BOOK_ID))
+                .thenReturn(returnedRecord);
+            when(borrowRecordMapper.toResponse(returnedRecord))
+                .thenReturn(returnedResponse);
+
+            // When & Then
+            returnBook(VALID_BOOK_ID)
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.id").value(returnedRecord.getId()))
+                    .andExpect(jsonPath("$.bookId").value(VALID_BOOK_ID))
+                    .andExpect(jsonPath("$.status").value("RETURNED"))
+                    .andExpect(jsonPath("$.returnDate").isNotEmpty())
+                    .andExpect(jsonPath("$.returnDate").value(returnedRecord.getReturnDate().toString()));
+
+            verify(inventoryService).returnBook(VALID_USER_ID, VALID_BOOK_ID);
+            verify(borrowRecordMapper).toResponse(returnedRecord);
+        }
+
+        @Test
+        @DisplayName("Should return 404 when book is not found")
+        void returnBook_BookNotFound_Returns404() throws Exception {
+            // Given
+            when(inventoryService.returnBook(VALID_USER_ID, INVALID_BOOK_ID))
+                .thenThrow(new ResourceNotFoundException(BOOK_NOT_FOUND));
+
+            // When & Then
+            returnBook(INVALID_BOOK_ID)
+                    .andExpect(status().isNotFound())
+                    .andExpect(jsonPath("$.message").value(BOOK_NOT_FOUND));
+
+            verify(inventoryService).returnBook(VALID_USER_ID, INVALID_BOOK_ID);
+            verify(borrowRecordMapper, never()).toResponse(any());
+        }
+
+        @ParameterizedTest
+        @ValueSource(strings = {RETURNED_OR_NOT_BORROWED, ALL_COPIES_AVAILABLE})
+        @DisplayName("Should return 422 when book cannot be returned")
+        void returnBook_CannotReturn_Returns422(String errorMessage) throws Exception {
+            // Given
+            when(inventoryService.returnBook(VALID_USER_ID, VALID_BOOK_ID))
+                .thenThrow(new BusinessRuleViolationException(errorMessage));
+
+            // When & Then
+            returnBook(VALID_BOOK_ID)
+                    .andExpect(status().isUnprocessableEntity())
+                    .andExpect(jsonPath("$.message").value(errorMessage));
+
+            verify(inventoryService).returnBook(VALID_USER_ID, VALID_BOOK_ID);
+            verify(borrowRecordMapper, never()).toResponse(any());
+        }
+
+        @Test
+        @DisplayName("Should return 400 when book ID is invalid")
+        void returnBook_InvalidBookId_Returns400() throws Exception {
+            // When & Then
+            mockMvc.perform(post("/api/inventory/books/invalid/return")
+                    .contentType(MediaType.APPLICATION_JSON))
+                    .andExpect(status().isBadRequest());
+
+            verify(inventoryService, never()).returnBook(any(), any());
+            verify(borrowRecordMapper, never()).toResponse(any());
+        }
     }
 
-    @Test
-    public void shouldReturn400WhenReturningWithInvalidBookId() throws Exception {
-        // Act & Assert
-        mockMvc.perform(post("/api/inventory/books/invalid/return")
-                .contentType(MediaType.APPLICATION_JSON))
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.status").value(400))
-                .andExpect(jsonPath("$.error").value("Bad Request"))
-                .andExpect(jsonPath("$.errorCode").value("TYPE_MISMATCH"));
+    @Nested
+    @DisplayName("Check Borrow Status Tests")
+    class CheckBorrowStatusTests {
+
+        @Test
+        @DisplayName("Should return 200 and borrow status when checking valid book")
+        void checkBorrowStatus_ValidBookId_Returns200AndStatus() throws Exception {
+            // Given
+            when(inventoryService.hasUserBorrowedBook(VALID_USER_ID, VALID_BOOK_ID))
+                .thenReturn(true);
+
+            // When & Then
+            checkBorrowStatus(VALID_BOOK_ID)
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.borrowed").value(true));
+
+            verify(inventoryService).hasUserBorrowedBook(VALID_USER_ID, VALID_BOOK_ID);
+        }
+
+        @Test
+        @DisplayName("Should return 404 when book is not found")
+        void checkBorrowStatus_BookNotFound_Returns404() throws Exception {
+            // Given
+            when(inventoryService.hasUserBorrowedBook(VALID_USER_ID, INVALID_BOOK_ID))
+                .thenThrow(new ResourceNotFoundException(BOOK_NOT_FOUND));
+
+            // When & Then
+            checkBorrowStatus(INVALID_BOOK_ID)
+                    .andExpect(status().isNotFound())
+                    .andExpect(jsonPath("$.message").value(BOOK_NOT_FOUND));
+
+            verify(inventoryService).hasUserBorrowedBook(VALID_USER_ID, INVALID_BOOK_ID);
+        }
+
+        @Test
+        @DisplayName("Should return 404 when user is not found")
+        void checkBorrowStatus_UserNotFound_Returns404() throws Exception {
+            // Given
+            when(inventoryService.hasUserBorrowedBook(anyLong(), eq(VALID_BOOK_ID)))
+                .thenThrow(new ResourceNotFoundException(USER_NOT_FOUND));
+
+            // When & Then
+            checkBorrowStatus(VALID_BOOK_ID)
+                    .andExpect(status().isNotFound())
+                    .andExpect(jsonPath("$.message").value(USER_NOT_FOUND));
+
+            verify(inventoryService).hasUserBorrowedBook(anyLong(), eq(VALID_BOOK_ID));
+        }
+
+        @Test
+        @DisplayName("Should return 400 when book ID is invalid")
+        void checkBorrowStatus_InvalidBookId_Returns400() throws Exception {
+            // When & Then
+            mockMvc.perform(get("/api/inventory/books/invalid/status")
+                    .contentType(MediaType.APPLICATION_JSON))
+                    .andExpect(status().isBadRequest());
+
+            verify(inventoryService, never()).hasUserBorrowedBook(any(), any());
+        }
     }
 
-    // ========== Edge Cases ==========
+    @Nested
+    @DisplayName("Get User Borrow Records Tests")
+    class GetUserBorrowRecordsTests {
 
-    @Test
-    public void shouldReturn200WhenBorrowingBookWithSingleAvailableCopy() throws Exception {
-        // Arrange
-        Book borrowedBook = new Book();
-        borrowedBook.setId(1L);
-        borrowedBook.setTitle("Rare Book");
-        borrowedBook.setAuthor("Rare Author");
-        borrowedBook.setGenre(BookGenre.SCIENCE);
-        borrowedBook.setAvailableCopies(0); // All copies borrowed
-        borrowedBook.setPublicationDate(LocalDate.of(2023, 1, 1));
-        
-        BookResponse response = BookResponse.builder()
-            .id(1L)
-            .title("Rare Book")
-            .author("Rare Author")
-            .genre(BookGenre.SCIENCE)
-            .availableCopies(0)
-            .publicationDate(LocalDate.of(2023, 1, 1))
-            .build();
+        @Test
+        @DisplayName("Should return 200 and page of all borrow records")
+        void getUserBorrowRecords_ValidRequest_Returns200AndPage() throws Exception {
+            // Given
+            List<Book> books = TestDataFactory.createBooksForPagination(3);
+            Page<BorrowRecord> recordsPage = TestDataFactory.createDefaultBorrowRecordPage(testUser, books);
+            Page<BorrowRecordResponse> responsePage = TestDataFactory.createDefaultBorrowRecordResponsePage(testUser, books);
 
-        given(inventoryService.borrowBook(1L)).willReturn(borrowedBook);
-        given(bookMapper.toResponse(any(Book.class))).willReturn(response);
+            when(inventoryService.getUserBorrowRecordsByStatus(anyLong(), eq(BorrowStatus.BORROWED), any(Pageable.class)))
+                .thenReturn(recordsPage);
+            when(borrowRecordMapper.toResponse(any(BorrowRecord.class)))
+                .thenAnswer(inv -> {
+                    BorrowRecord record = inv.getArgument(0);
+                    return responsePage.getContent().stream()
+                        .filter(resp -> resp.getId().equals(record.getId()))
+                        .findFirst()
+                        .orElse(responsePage.getContent().get(0));
+                });
 
-        // Act & Assert
-        mockMvc.perform(post("/api/inventory/books/1/borrow")
-                .contentType(MediaType.APPLICATION_JSON))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.id").value(1))
-                .andExpect(jsonPath("$.title").value("Rare Book"))
-                .andExpect(jsonPath("$.availableCopies").value(0));
-    }
+            // When & Then
+            getUserBorrowRecords()
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.content").isArray())
+                    .andExpect(jsonPath("$.content.length()").value(3))
+                    .andExpect(jsonPath("$.totalElements").value(3))
+                    .andExpect(jsonPath("$.totalPages").value(1))
+                    .andExpect(jsonPath("$.number").value(0))
+                    .andExpect(jsonPath("$.size").value(10));
 
-    @Test
-    public void shouldReturn200WhenReturningBookToFullAvailability() throws Exception {
-        // Arrange
-        Book returnedBook = new Book();
-        returnedBook.setId(1L);
-        returnedBook.setTitle("Popular Book");
-        returnedBook.setAuthor("Popular Author");
-        returnedBook.setGenre(BookGenre.FICTION);
-        returnedBook.setAvailableCopies(5); // All copies now available
-        returnedBook.setPublicationDate(LocalDate.of(2023, 1, 1));
-        
-        BookResponse response = BookResponse.builder()
-            .id(1L)
-            .title("Popular Book")
-            .author("Popular Author")
-            .genre(BookGenre.FICTION)
-            .availableCopies(5)
-            .publicationDate(LocalDate.of(2023, 1, 1))
-            .build();
+            verify(inventoryService).getUserBorrowRecordsByStatus(anyLong(), eq(BorrowStatus.BORROWED), any(Pageable.class));
+            verify(borrowRecordMapper, times(recordsPage.getContent().size())).toResponse(any());
+        }
 
-        given(inventoryService.returnBook(1L)).willReturn(returnedBook);
-        given(bookMapper.toResponse(any(Book.class))).willReturn(response);
+        @Test
+        @DisplayName("getUserBorrowRecords_shouldReturnPageOfBorrowRecordResponses_whenPageAndSizeProvided")
+        void getUserBorrowRecords_shouldReturnPageOfBorrowRecordResponses_whenPageAndSizeProvided() throws Exception {
+            // Given
+            Pageable pageable = TestDataFactory.createPageable(1, 15);
+             List<Book> books = TestDataFactory.createBooksForPagination(3);
+            Page<BorrowRecord> recordsPage = TestDataFactory.createCustomBorrowRecordPage(testUser, books, pageable.getPageNumber(), pageable.getPageSize());
+            Page<BorrowRecordResponse> responsePage = TestDataFactory.createCustomBorrowRecordResponsePage(testUser, books, pageable.getPageNumber(), pageable.getPageSize());
+            
+            when(inventoryService.getUserBorrowRecordsByStatus(anyLong(), eq(BorrowStatus.BORROWED), eq(pageable)))
+                    .thenReturn(recordsPage);
 
-        // Act & Assert
-        mockMvc.perform(post("/api/inventory/books/1/return")
-                .contentType(MediaType.APPLICATION_JSON))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.id").value(1))
-                .andExpect(jsonPath("$.title").value("Popular Book"))
-                .andExpect(jsonPath("$.availableCopies").value(5));
-    }
+             when(borrowRecordMapper.toResponse(any(BorrowRecord.class)))
+            .thenAnswer(invocation -> {
+                BorrowRecord record = invocation.getArgument(0);
+                return responsePage.getContent().stream()
+                        .filter(resp -> resp.getId().equals(record.getId()))
+                        .findFirst()
+                        .orElse(responsePage.getContent().get(0));
+            });
 
-    @Test
-    public void shouldReturn422WhenReturningBookExceedsTotalCopies() throws Exception {
-        // Arrange
-        willThrow(new BusinessRuleViolationException("Cannot return more copies than total copies", "EXCEEDS_TOTAL_COPIES"))
-                .given(inventoryService).returnBook(1L);
+            // When & Then
+            getUserBorrowRecordsWithPagination(pageable.getPageNumber(), pageable.getPageSize())
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.content").isArray())
+                    .andExpect(jsonPath("$.content.length()").value(3))
+                    .andExpect(jsonPath("$.number").value(pageable.getPageNumber()))
+                    .andExpect(jsonPath("$.size").value(pageable.getPageSize()));
 
-        // Act & Assert
-        mockMvc.perform(post("/api/inventory/books/1/return")
-                .contentType(MediaType.APPLICATION_JSON))
-                .andExpect(status().isUnprocessableEntity())
-                .andExpect(jsonPath("$.status").value(422))
-                .andExpect(jsonPath("$.error").value("Unprocessable Entity"))
-                .andExpect(jsonPath("$.message").value("Cannot return more copies than total copies"))
-                .andExpect(jsonPath("$.errorCode").value("BUSINESS_RULE_VIOLATION"));
-    }
+            verify(inventoryService).getUserBorrowRecordsByStatus(anyLong(), eq(BorrowStatus.BORROWED), eq(pageable));
+            verify(borrowRecordMapper, times(responsePage.getNumberOfElements())).toResponse(any(BorrowRecord.class));
+        }
 
-    @Test
-    public void shouldReturn500WhenUnexpectedErrorOccursDuringBorrow() throws Exception {
-        // Arrange
-        willThrow(new RuntimeException("Unexpected database error"))
-                .given(inventoryService).borrowBook(1L);
+        @Test
+        @DisplayName("Should return 200 and page of borrow records filtered by status")
+        void getUserBorrowRecords_FilteredByStatus_Returns200AndPage() throws Exception {
+            // Given
+            List<Book> books = TestDataFactory.createBooksForPagination(2);
+            Page<BorrowRecord> recordsPage = TestDataFactory.createDefaultBorrowRecordPage(testUser, books);
 
-        // Act & Assert
-        mockMvc.perform(post("/api/inventory/books/1/borrow")
-                .contentType(MediaType.APPLICATION_JSON))
-                .andExpect(status().isInternalServerError())
-                .andExpect(jsonPath("$.status").value(500))
-                .andExpect(jsonPath("$.error").value("Internal Server Error"))
-                .andExpect(jsonPath("$.message").value("An unexpected error occurred"))
-                .andExpect(jsonPath("$.errorCode").value("INTERNAL_SERVER_ERROR"));
-    }
+            recordsPage.getContent().forEach(record -> {
+                record.setStatus(BorrowStatus.RETURNED);
+                record.setReturnDate(LocalDate.now().minusDays(2));
+            });
 
-    @Test
-    public void shouldReturn500WhenUnexpectedErrorOccursDuringReturn() throws Exception {
-        // Arrange
-        willThrow(new RuntimeException("Unexpected database error"))
-                .given(inventoryService).returnBook(1L);
+            Page<BorrowRecordResponse> responsePage = new PageImpl<BorrowRecordResponse>(
+                recordsPage.getContent().stream()
+                    .map(record -> TestDataFactory.createBorrowRecordResponse(record))
+                    .toList()
+            );
 
-        // Act & Assert
-        mockMvc.perform(post("/api/inventory/books/1/return")
-                .contentType(MediaType.APPLICATION_JSON))
-                .andExpect(status().isInternalServerError())
-                .andExpect(jsonPath("$.status").value(500))
-                .andExpect(jsonPath("$.error").value("Internal Server Error"))
-                .andExpect(jsonPath("$.message").value("An unexpected error occurred"))
-                .andExpect(jsonPath("$.errorCode").value("INTERNAL_SERVER_ERROR"));
+            when(inventoryService.getUserBorrowRecordsByStatus(
+                    eq(VALID_USER_ID), eq(BorrowStatus.RETURNED), any(Pageable.class)))
+                .thenReturn(recordsPage);
+            when(borrowRecordMapper.toResponse(any(BorrowRecord.class)))
+                .thenAnswer(inv -> {
+                    BorrowRecord record = inv.getArgument(0);
+                    return responsePage.getContent().stream()
+                        .filter(resp -> resp.getId().equals(record.getId()))
+                        .findFirst()
+                        .orElse(responsePage.getContent().get(0));
+                });
+
+            // When & Then
+            getUserBorrowRecordsByStatus("RETURNED")
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.content").isArray())
+                    .andExpect(jsonPath("$.content.length()").value(2))
+                    .andExpect(jsonPath("$.content[0].status").value("RETURNED"))
+                    .andExpect(jsonPath("$.totalElements").value(2))
+                    .andExpect(jsonPath("$.totalPages").value(1))
+                    .andExpect(jsonPath("$.number").value(0))
+                    .andExpect(jsonPath("$.size").value(10));
+
+            verify(inventoryService).getUserBorrowRecordsByStatus(
+                eq(VALID_USER_ID), eq(BorrowStatus.RETURNED), any(Pageable.class));
+            verify(borrowRecordMapper, times(recordsPage.getContent().size())).toResponse(any());
+        }
+
+        @Test
+        @DisplayName("Should return 400 when status is invalid")
+        void getUserBorrowRecords_InvalidStatus_Returns400() throws Exception {
+            // When & Then
+            getUserBorrowRecordsByStatus("INVALID_STATUS")
+                    .andExpect(status().isBadRequest());
+
+            verify(inventoryService, never()).getUserBorrowRecordsByStatus(anyLong(), any(BorrowStatus.class), any(Pageable.class));
+            verify(borrowRecordMapper, never()).toResponse(any());
+        }
+
+        @Test
+        @DisplayName("Should return 404 when user is not found")
+        void getUserBorrowRecords_UserNotFound_Returns404() throws Exception {
+            // Given
+            when(inventoryService.getUserBorrowRecordsByStatus(anyLong(), eq(BorrowStatus.BORROWED), any(Pageable.class)))
+                .thenThrow(new ResourceNotFoundException(USER_NOT_FOUND));
+
+            // When & Then
+            getUserBorrowRecords()
+                    .andExpect(status().isNotFound())
+                    .andExpect(jsonPath("$.message").value(USER_NOT_FOUND));
+
+            verify(inventoryService).getUserBorrowRecordsByStatus(anyLong(), eq(BorrowStatus.BORROWED), any(Pageable.class));
+            verify(borrowRecordMapper, never()).toResponse(any());
+        }
     }
 }

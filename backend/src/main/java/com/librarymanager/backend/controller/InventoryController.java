@@ -1,14 +1,23 @@
 package com.librarymanager.backend.controller;
 
-import com.librarymanager.backend.dto.response.BookResponse;
-import com.librarymanager.backend.entity.Book;
-import com.librarymanager.backend.mapper.BookMapper;
+import com.librarymanager.backend.dto.response.BorrowRecordResponse;
+import com.librarymanager.backend.entity.BorrowRecord;
+import com.librarymanager.backend.entity.BorrowStatus;
+import com.librarymanager.backend.mapper.BorrowRecordMapper;
+import com.librarymanager.backend.security.CustomUserDetails;
 import com.librarymanager.backend.service.InventoryService;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 
 /**
  * REST controller for book inventory operations.
@@ -25,60 +34,126 @@ import org.springframework.security.access.prepost.PreAuthorize;
  */
 @RestController
 @RequestMapping("/api/inventory/books")
+@RequiredArgsConstructor
+@Slf4j
 public class InventoryController {
-
-    private static final Logger log = LoggerFactory.getLogger(InventoryController.class);
     
     private final InventoryService inventoryService;
-    private final BookMapper bookMapper;
+    private final BorrowRecordMapper borrowRecordMapper;
 
     /**
-     * Constructor injection for dependencies.
+     * Borrow a book
      * 
-     * @param inventoryService the inventory service
-     * @param bookMapper the book mapper for DTO conversion
+     * @param bookId Book to borrow (from path)
+     * @param userDetails Current user (from JWT via Spring Security)
+     * @return Borrow record with book details and due date
      */
-    public InventoryController(InventoryService inventoryService, BookMapper bookMapper) {
-        this.inventoryService = inventoryService;
-        this.bookMapper = bookMapper;
-    }
-
-    /**
-     * Borrows a book by its ID.
-     * 
-     * @param id the book ID to borrow
-     * @return ResponseEntity with updated book information or error status
-     */
-    @PostMapping("/{id}/borrow")
+    @PostMapping("/{bookId}/borrow")
     @PreAuthorize("isAuthenticated()")
-    public ResponseEntity<BookResponse> borrowBook(@PathVariable Long id) {
-        log.info("Processing borrow request for book ID: {}", id);
+    public ResponseEntity<BorrowRecordResponse> borrowBook(@PathVariable Long bookId, @AuthenticationPrincipal CustomUserDetails userDetails) {
+        log.debug("Borrow request: bookId={}, userId={}", bookId, userDetails.getId());
         
-        Book borrowedBook = inventoryService.borrowBook(id);
-        BookResponse response = bookMapper.toResponse(borrowedBook);
+        BorrowRecord borrowRecord = inventoryService.borrowBook(
+            userDetails.getId(), 
+            bookId
+        );
         
-        log.info("Book borrowed successfully: '{}' (ID: {}). Available copies: {}", 
-            borrowedBook.getTitle(), id, borrowedBook.getAvailableCopies());
-        
-        return ResponseEntity.ok(response);
+        return ResponseEntity.ok(borrowRecordMapper.toResponse(borrowRecord));
     }
+    
+    /**
+     * Return a borrowed book
+     * 
+     * @param bookId Book to return (from path)
+     * @param userDetails Current user (from JWT via Spring Security)
+     * @return Updated borrow record with return date
+     */
+    @PostMapping("/{bookId}/return")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<BorrowRecordResponse> returnBook(@PathVariable Long bookId, @AuthenticationPrincipal CustomUserDetails userDetails) {
+        log.debug("Return request: bookId={}, userId={}", bookId, userDetails.getId());
+        
+        BorrowRecord borrowRecord = inventoryService.returnBook(
+            userDetails.getId(), 
+            bookId
+        );
+        
+        return ResponseEntity.ok(borrowRecordMapper.toResponse(borrowRecord));
+    }
+    
+    /**
+     * Check if current user has borrowed a specific book
+     * Used by frontend to show correct button (Borrow vs Return)
+     * 
+     * @param bookId Book to check
+     * @param userDetails Current user
+     * @return { "borrowed": true/false }
+     */
+    @GetMapping("/{bookId}/status")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<BorrowStatusResponse> checkBorrowStatus(@PathVariable Long bookId, @AuthenticationPrincipal CustomUserDetails userDetails) {
+        boolean borrowed = inventoryService.hasUserBorrowedBook(
+            userDetails.getId(), 
+            bookId
+        );
+        
+        return ResponseEntity.ok(new BorrowStatusResponse(borrowed));
+    }
+    
+    // Simple response DTO for status check
+    public record BorrowStatusResponse(boolean borrowed) {}
 
     /**
-     * Returns a book by its ID.
+     * Get current user's borrow records with optional status filter
      * 
-     * @param id the book ID to return
-     * @return ResponseEntity with updated book information or error status
+     * <p>Endpoint: GET /api/users/me/borrows</p>
+     * <p>
+     * Query params:
+     * <ul>
+     *    <li> page: Page number (0-indexed, default: 0)</li>
+     *    <li> size: Page size (default: 10)</li>
+     *    <li> status: Filter by BORROWED or RETURNED (optional)</li>
+     * </ul>
+     * </p>
+     * <p>
+     * Examples:
+     * <ul>
+     *  <li> GET /api/users/me/borrows → All borrows, page 0, size 10 </li>
+     *  <li> GET /api/users/me/borrows?status=BORROWED → Active borrows only</li>
+     *  <li> GET /api/users/me/borrows?status=RETURNED&page=1 → History, page 1</li>
+     * </ul>
+     * </p>
+     * @param status Optional status filter
+     * @param page Page number (default 0)
+     * @param size Page size (default 10)
+     * @param userDetails Current user (from JWT)
+     * @return Paginated borrow records
      */
-    @PostMapping("/{id}/return")
+    @GetMapping
     @PreAuthorize("isAuthenticated()")
-    public ResponseEntity<BookResponse> returnBook(@PathVariable Long id) {
-        log.info("Processing return request for book ID: {}", id);
+    public ResponseEntity<Page<BorrowRecordResponse>> getUserBorrowRecords(
+        @RequestParam(required = false, defaultValue = "BORROWED") BorrowStatus status,
+        @RequestParam(required = false,defaultValue = "0") int page,
+        @RequestParam(required = false, defaultValue = "10") int size,
+        @AuthenticationPrincipal CustomUserDetails userDetails
+    ) {
+        log.debug("Fetching borrow records for user {} (status: {}, page: {}, size: {})", 
+            userDetails.getId(), status, page, size);
         
-        Book returnedBook = inventoryService.returnBook(id);
-        BookResponse response = bookMapper.toResponse(returnedBook);
+        // Sort by due date ascending (closest due date first)
+        Pageable pageable = PageRequest.of(page, size, Sort.by("dueDate").ascending());
         
-        log.info("Book returned successfully: '{}' (ID: {}). Available copies: {}", 
-            returnedBook.getTitle(), id, returnedBook.getAvailableCopies());
+        Page<BorrowRecord> borrowRecords = inventoryService.getUserBorrowRecordsByStatus(
+                userDetails.getId(), 
+                status, 
+                pageable
+            );
+        
+        // Map entities to DTOs
+        Page<BorrowRecordResponse> response = borrowRecords.map(borrowRecordMapper::toResponse);
+        
+        log.debug("Returning {} borrow records for user {}", 
+            response.getNumberOfElements(), userDetails.getId());
         
         return ResponseEntity.ok(response);
     }

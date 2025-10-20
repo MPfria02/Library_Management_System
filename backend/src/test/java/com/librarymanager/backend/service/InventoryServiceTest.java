@@ -2,11 +2,21 @@ package com.librarymanager.backend.service;
 
 import com.librarymanager.backend.entity.Book;
 import com.librarymanager.backend.entity.BookGenre;
+import com.librarymanager.backend.entity.BorrowRecord;
+import com.librarymanager.backend.entity.BorrowStatus;
+import com.librarymanager.backend.entity.User;
+import com.librarymanager.backend.repository.BookRepository;
+import com.librarymanager.backend.repository.BorrowRecordRepository;
+import com.librarymanager.backend.repository.UserRepository;
 import com.librarymanager.backend.testutil.TestDataFactory;
+import org.junit.jupiter.api.Nested;
 import com.librarymanager.backend.exception.BusinessRuleViolationException;
 import com.librarymanager.backend.exception.ResourceNotFoundException;
 
 import org.junit.jupiter.api.BeforeEach;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.Pageable;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -15,6 +25,9 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.time.LocalDate;
+import java.util.List;
+import java.util.Optional;
+import java.util.Arrays;
 
 import static org.assertj.core.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
@@ -36,17 +49,38 @@ import static org.mockito.Mockito.*;
 class InventoryServiceTest {
 
     @Mock
-    private BookCatalogService bookCatalogService;
+    private BorrowRecordRepository borrowRecordRepository;
+    
+    @Mock
+    private UserRepository userRepository;
+    
+    @Mock
+    private BookRepository bookRepository;
 
     @InjectMocks
     private InventoryService inventoryService;
 
+    private User testUser;
     private Book availableBook;
     private Book unavailableBook;
     private Book singleCopyBook;
+    private BorrowRecord activeBorrowRecord;
+    private BorrowRecord returnedBorrowRecord;
+
+    // Reusable exception message constants
+    private static final String BOOK_NOT_FOUND = "Book not found";
+    private static final String USER_NOT_FOUND = "User not found";
+    private static final String USER_OR_BOOK_NOT_FOUND = "User or Book not found";
+    private static final String ALREADY_BORROWED = "You have already borrowed this book";
+    private static final String NOT_BORROWED_OR_ALREADY_RETURNED = "You have not borrowed this book or it has already been returned";
 
     @BeforeEach
     void setUp() {
+        // Set up test user using TestDataFactory
+        testUser = TestDataFactory.createDefaultMemberUser();
+        testUser.setId(1L);
+
+        // Set up test books
         availableBook = TestDataFactory.createCustomBook(
             "978-0134685991",
             "Effective Java",
@@ -79,213 +113,444 @@ class InventoryServiceTest {
             1,
             1);
         singleCopyBook.setId(3L);
+
+        // Set up borrow records
+        LocalDate now = LocalDate.now();
+        activeBorrowRecord = BorrowRecord.builder()
+            .id(1L)
+            .user(testUser)
+            .book(unavailableBook)
+            .borrowDate(now)
+            .dueDate(now.plusDays(7))
+            .status(BorrowStatus.BORROWED)
+            .build();
+
+        returnedBorrowRecord = BorrowRecord.builder()
+            .id(2L)
+            .user(testUser)
+            .book(availableBook)
+            .borrowDate(now.minusDays(14))
+            .dueDate(now.minusDays(7))
+            .returnDate(now.minusDays(6))
+            .status(BorrowStatus.RETURNED)
+            .build();
+    }
+    // ========== Nested Test Groups ==========
+
+    @Nested
+    @DisplayName("Borrow Book Scenarios")
+    class BorrowTests {
+
+        @Test
+        @DisplayName("Should successfully borrow book when available")
+        void borrowBook_BookAvailable_UpdatesInventoryAndReturnsRecord() {
+            // Given
+            Long userId = 1L;
+            Long bookId = 1L;
+            Book bookAfterBorrow = TestDataFactory.createCustomBook(
+                availableBook.getIsbn(), availableBook.getTitle(), availableBook.getAuthor(), availableBook.getDescription(), availableBook.getPublicationDate(),
+                availableBook.getGenre(), 5, 2); // Decremented by 1
+            bookAfterBorrow.setId(1L);
+
+            when(userRepository.findById(userId)).thenReturn(Optional.of(testUser));
+            when(bookRepository.findById(bookId)).thenReturn(Optional.of(availableBook));
+            when(borrowRecordRepository.findActiveBorrowByUserAndBook(userId, bookId)).thenReturn(Optional.empty());
+            when(bookRepository.save(any(Book.class))).thenReturn(bookAfterBorrow);
+            when(borrowRecordRepository.save(any(BorrowRecord.class))).thenAnswer(invocation -> {
+                BorrowRecord record = invocation.getArgument(0);
+                record.setId(1L);
+                return record;
+            });
+
+            // When
+            BorrowRecord result = inventoryService.borrowBook(userId, bookId);
+
+            // Then
+            assertThat(result).isNotNull();
+            assertThat(result.getUser()).isEqualTo(testUser);
+            assertThat(result.getBook().getAvailableCopies()).isEqualTo(2);
+            assertThat(result.getStatus()).isEqualTo(BorrowStatus.BORROWED);
+            assertThat(result.getDueDate()).isEqualTo(result.getBorrowDate().plusDays(7));
+            
+            verify(userRepository).findById(userId);
+            verify(bookRepository).findById(bookId);
+            verify(borrowRecordRepository).findActiveBorrowByUserAndBook(userId, bookId);
+            verify(bookRepository).save(any(Book.class));
+            verify(borrowRecordRepository).save(any(BorrowRecord.class));
+        }
+
+        @Test
+        @DisplayName("Should successfully borrow last available copy")
+        void borrowBook_LastCopy_UpdatesInventoryToZero() {
+            // Given
+            Long userId = 1L;
+            Long bookId = 3L;
+            Book bookAfterBorrow = TestDataFactory.createCustomBook(
+                singleCopyBook.getIsbn(), singleCopyBook.getTitle(), singleCopyBook.getAuthor(), singleCopyBook.getDescription(), singleCopyBook.getPublicationDate(),
+                singleCopyBook.getGenre(),
+                1, 0); // Last copy borrowed
+            bookAfterBorrow.setId(3L);
+
+            when(userRepository.findById(userId)).thenReturn(Optional.of(testUser));
+            when(bookRepository.findById(bookId)).thenReturn(Optional.of(singleCopyBook));
+            when(borrowRecordRepository.findActiveBorrowByUserAndBook(userId, bookId)).thenReturn(Optional.empty());
+            when(bookRepository.save(any(Book.class))).thenReturn(bookAfterBorrow);
+            when(borrowRecordRepository.save(any(BorrowRecord.class))).thenAnswer(invocation -> {
+                BorrowRecord record = invocation.getArgument(0);
+                record.setId(2L);
+                return record;
+            });
+
+            // When
+            BorrowRecord result = inventoryService.borrowBook(userId, bookId);
+
+            // Then
+            assertThat(result).isNotNull();
+            assertThat(result.getBook().getAvailableCopies()).isEqualTo(0);
+            assertThat(result.getBook().getTotalCopies()).isEqualTo(1);
+            assertThat(result.getStatus()).isEqualTo(BorrowStatus.BORROWED);
+            
+            verify(userRepository).findById(userId);
+            verify(bookRepository).findById(bookId);
+            verify(borrowRecordRepository).findActiveBorrowByUserAndBook(userId, bookId);
+            verify(bookRepository).save(any(Book.class));
+            verify(borrowRecordRepository).save(any(BorrowRecord.class));
+        }
+
+        @Test
+        @DisplayName("Should throw ResourceNotFoundException when book not found")
+        void borrowBook_BookNotFound_ThrowsException() {
+            // Given
+            Long userId = 1L;
+            Long bookId = 999L;
+            when(userRepository.findById(userId)).thenReturn(Optional.of(testUser));
+            when(bookRepository.findById(bookId)).thenReturn(Optional.empty());
+
+            // When & Then
+            assertThatThrownBy(() -> inventoryService.borrowBook(userId, bookId))
+                .isInstanceOf(ResourceNotFoundException.class)
+                .hasMessageContaining(BOOK_NOT_FOUND);
+
+            verify(userRepository).findById(userId);
+            verify(bookRepository).findById(bookId);
+            verify(borrowRecordRepository, never()).findActiveBorrowByUserAndBook(any(), any());
+            verify(bookRepository, never()).save(any());
+            verify(borrowRecordRepository, never()).save(any());
+        }
+
+        @Test
+        @DisplayName("Should throw BusinessRuleViolationException when book not available")
+        void borrowBook_BookNotAvailable_ThrowsException() {
+            // Given
+            Long userId = 1L;
+            Long bookId = 2L;
+            when(userRepository.findById(userId)).thenReturn(Optional.of(testUser));
+            when(bookRepository.findById(bookId)).thenReturn(Optional.of(unavailableBook));
+            when(borrowRecordRepository.findActiveBorrowByUserAndBook(userId, bookId)).thenReturn(Optional.empty());
+
+            // When & Then
+            assertThatThrownBy(() -> inventoryService.borrowBook(userId, bookId))
+                .isInstanceOf(BusinessRuleViolationException.class)
+                .hasMessageContaining(BusinessRuleViolationException.bookNotAvailable(unavailableBook.getTitle()).getMessage());
+
+            verify(userRepository).findById(userId);
+            verify(bookRepository).findById(bookId);
+            verify(borrowRecordRepository).findActiveBorrowByUserAndBook(userId, bookId);
+            verify(bookRepository, never()).save(any());
+            verify(borrowRecordRepository, never()).save(any());
+        }
+
+        @Test
+        @DisplayName("Should throw BusinessRuleViolationException when user already has book borrowed")
+        void borrowBook_AlreadyBorrowed_ThrowsException() {
+            // Given
+            Long userId = 1L;
+            Long bookId = 2L;
+            when(userRepository.findById(userId)).thenReturn(Optional.of(testUser));
+            when(bookRepository.findById(bookId)).thenReturn(Optional.of(unavailableBook));
+            when(borrowRecordRepository.findActiveBorrowByUserAndBook(userId, bookId))
+                .thenReturn(Optional.of(activeBorrowRecord));
+
+            // When & Then
+            assertThatThrownBy(() -> inventoryService.borrowBook(userId, bookId))
+                .isInstanceOf(BusinessRuleViolationException.class)
+                .hasMessageContaining(ALREADY_BORROWED);
+
+            verify(userRepository).findById(userId);
+            verify(bookRepository).findById(bookId);
+            verify(borrowRecordRepository).findActiveBorrowByUserAndBook(userId, bookId);
+            verify(bookRepository, never()).save(any());
+            verify(borrowRecordRepository, never()).save(any(BorrowRecord.class));
+        }
     }
 
-    // ========== borrowBook Tests ==========
+    @Nested
+    @DisplayName("Return Book Scenarios")
+    class ReturnTests {
 
-    @Test
-    @DisplayName("Should successfully borrow book when available")
-    void borrowBook_BookAvailable_UpdatesInventoryAndReturnsBook() {
-        // Given
-        Long bookId = 1L;
-        Book expectedUpdatedBook = TestDataFactory.createCustomBook(
-            availableBook.getIsbn(), availableBook.getTitle(), availableBook.getAuthor(), availableBook.getDescription(), availableBook.getPublicationDate(),
-            availableBook.getGenre(), 5, 2); // Decremented by 1
-        expectedUpdatedBook.setId(1L);
+        @Test
+        @DisplayName("Should successfully return book when valid")
+        void returnBook_ValidReturn_UpdatesInventoryAndReturnsBorrowRecord() {
+            // Given
+            Long userId = 1L;
+            Long bookId = 2L;
+            Book bookBeforeReturn = TestDataFactory.createCustomBook(
+                unavailableBook.getIsbn(), unavailableBook.getTitle(), unavailableBook.getAuthor(),
+                unavailableBook.getDescription(), unavailableBook.getPublicationDate(), unavailableBook.getGenre(), 
+                2, 0); // All copies borrowed
+            bookBeforeReturn.setId(2L);
 
-        when(bookCatalogService.findById(bookId)).thenReturn(availableBook);
-        when(bookCatalogService.updateBook(any(Book.class))).thenReturn(expectedUpdatedBook);
+            Book bookAfterReturn = TestDataFactory.createCustomBook(
+                unavailableBook.getIsbn(), unavailableBook.getTitle(), unavailableBook.getAuthor(),
+                unavailableBook.getDescription(), unavailableBook.getPublicationDate(), unavailableBook.getGenre(),
+                2, 1); // One copy returned
+            bookAfterReturn.setId(2L);
 
-        // When
-        Book result = inventoryService.borrowBook(bookId);
+            BorrowRecord borrowBeforeReturn = activeBorrowRecord;
+            BorrowRecord expectedReturnedRecord = BorrowRecord.builder()
+                .id(1L)
+                .user(testUser)
+                .book(bookAfterReturn)
+                .borrowDate(borrowBeforeReturn.getBorrowDate())
+                .dueDate(borrowBeforeReturn.getDueDate())
+                .returnDate(LocalDate.now())
+                .status(BorrowStatus.RETURNED)
+                .build();
 
-        // Then
-        assertThat(result).isNotNull();
-        assertThat(result.getAvailableCopies()).isEqualTo(2);
-        assertThat(result.getTotalCopies()).isEqualTo(5);
-        
-        verify(bookCatalogService).findById(bookId);
-        verify(bookCatalogService).updateBook(any(Book.class));
+            when(userRepository.existsById(userId)).thenReturn(true);
+            when(bookRepository.existsById(bookId)).thenReturn(true);
+
+            when(borrowRecordRepository.findActiveBorrowByUserAndBook(userId, bookId))
+                .thenReturn(Optional.of(borrowBeforeReturn));
+            when(bookRepository.save(any(Book.class))).thenReturn(bookAfterReturn);
+            when(borrowRecordRepository.save(any(BorrowRecord.class))).thenReturn(expectedReturnedRecord);
+
+            // When
+            BorrowRecord result = inventoryService.returnBook(userId, bookId);
+
+            // Then
+            assertThat(result).isNotNull();
+            assertThat(result.getStatus()).isEqualTo(BorrowStatus.RETURNED);
+            assertThat(result.getReturnDate()).isEqualTo(LocalDate.now());
+            assertThat(result.getBook().getAvailableCopies()).isEqualTo(1);
+            
+            verify(borrowRecordRepository).findActiveBorrowByUserAndBook(userId, bookId);
+            verify(bookRepository).save(any(Book.class));
+            verify(borrowRecordRepository).save(any(BorrowRecord.class));
+        }
+
+        @Test
+        @DisplayName("Should throw ResourceNotFoundException when no user is found")
+        void returnBook_NoUserFound_ThrowsException() {
+            // Given
+            Long userId = 1L;
+            Long bookId = 1L;
+            when(userRepository.existsById(userId))
+                .thenReturn(false);
+
+            // When & Then
+            assertThatThrownBy(() -> inventoryService.returnBook(userId, bookId))
+                .isInstanceOf(ResourceNotFoundException.class)
+                .hasMessageContaining(USER_OR_BOOK_NOT_FOUND);
+
+            verify(borrowRecordRepository, never()).findActiveBorrowByUserAndBook(anyLong(), anyLong());
+            verify(bookRepository, never()).save(any());
+            verify(borrowRecordRepository, never()).save(any());
+        }
+
+        @Test
+        @DisplayName("Should throw BusinessRuleViolationException when no active borrow exists")
+        void returnBook_NoActiveBorrow_ThrowsException() {
+            // Given
+            Long userId = 1L;
+            Long bookId = 2L;
+            when(userRepository.existsById(userId)).thenReturn(true);
+            when(bookRepository.existsById(bookId)).thenReturn(true);
+            when(borrowRecordRepository.findActiveBorrowByUserAndBook(userId, bookId)).thenReturn(Optional.empty());
+
+            // When & Then
+            assertThatThrownBy(() -> inventoryService.returnBook(userId, bookId))
+                .isInstanceOf(BusinessRuleViolationException.class)
+                .hasMessageContaining(NOT_BORROWED_OR_ALREADY_RETURNED);
+
+            verify(borrowRecordRepository).findActiveBorrowByUserAndBook(userId, bookId);
+            verify(bookRepository, never()).save(any());
+            verify(borrowRecordRepository, never()).save(any());
+        }
+
+        @Test
+        @DisplayName("Should throw BusinessRuleViolationException when returning but all copies are already available")
+        void returnBook_AllCopiesAlreadyAvailable_ThrowsException() {
+            // Given
+            Long userId = 1L;
+            Long bookId = 2L;
+
+            // Create a borrow record whose book currently has all copies available
+            Book bookAllAvailable = TestDataFactory.createCustomBook(
+                "978-0000000000", "All Available", "Author", "Desc", LocalDate.now(), BookGenre.TECHNOLOGY, 2, 2);
+            bookAllAvailable.setId(bookId);
+
+            BorrowRecord borrow = BorrowRecord.builder()
+                .id(99L)
+                .user(testUser)
+                .book(bookAllAvailable)
+                .borrowDate(LocalDate.now().minusDays(10))
+                .dueDate(LocalDate.now().minusDays(3))
+                .status(BorrowStatus.BORROWED)
+                .build();
+
+            when(userRepository.existsById(userId)).thenReturn(true);
+            when(bookRepository.existsById(bookId)).thenReturn(true);
+            when(borrowRecordRepository.findActiveBorrowByUserAndBook(userId, bookId)).thenReturn(Optional.of(borrow));
+
+            // When & Then
+            assertThatThrownBy(() -> inventoryService.returnBook(userId, bookId))
+                .isInstanceOf(BusinessRuleViolationException.class)
+                .hasMessageContaining(BusinessRuleViolationException.cannotReturnAllCopiesAvailable(bookAllAvailable.getTitle()).getMessage());
+
+            verify(borrowRecordRepository).findActiveBorrowByUserAndBook(userId, bookId);
+            verify(bookRepository, never()).save(any());
+            verify(borrowRecordRepository, never()).save(any());
+        }
     }
 
-    @Test
-    @DisplayName("Should successfully borrow last available copy")
-    void borrowBook_LastCopy_UpdatesInventoryToZero() {
-        // Given
-        Long bookId = 3L;
-        Book expectedUpdatedBook = TestDataFactory.createCustomBook(
-            singleCopyBook.getIsbn(), singleCopyBook.getTitle(), singleCopyBook.getAuthor(), singleCopyBook.getDescription(), singleCopyBook.getPublicationDate(),
-            singleCopyBook.getGenre(),
-            1, 0); // Last copy borrowed
-        expectedUpdatedBook.setId(3L); 
+    @Nested
+    @DisplayName("Has User Borrowed Checks")
+    class HasBorrowedTests {
 
-        when(bookCatalogService.findById(bookId)).thenReturn(singleCopyBook);
-        when(bookCatalogService.updateBook(any(Book.class))).thenReturn(expectedUpdatedBook);
+        @Test
+        @DisplayName("Should correctly check if user has borrowed a book")
+        void hasUserBorrowedBook_WithActiveBorrow_ReturnsTrue() {
+            // Given
+            Long userId = 1L;
+            Long bookId = 2L;
+            when(userRepository.existsById(userId)).thenReturn(true);
+            when(bookRepository.existsById(bookId)).thenReturn(true);
+            when(borrowRecordRepository.findActiveBorrowByUserAndBook(userId, bookId))
+                .thenReturn(Optional.of(activeBorrowRecord));
 
-        // When
-        Book result = inventoryService.borrowBook(bookId);
+            // When
+            boolean result = inventoryService.hasUserBorrowedBook(userId, bookId);
 
-        // Then
-        assertThat(result.getAvailableCopies()).isEqualTo(0);
-        assertThat(result.getTotalCopies()).isEqualTo(1);
-        
-        verify(bookCatalogService).findById(bookId);
-        verify(bookCatalogService).updateBook(any(Book.class));
+            // Then
+            assertThat(result).isTrue();
+            verify(borrowRecordRepository).findActiveBorrowByUserAndBook(userId, bookId);
+        }
+
+        @Test
+        @DisplayName("Should correctly check if user has not borrowed a book")
+        void hasUserBorrowedBook_WithNoActiveBorrow_ReturnsFalse() {
+            // Given
+            Long userId = 1L;
+            Long bookId = 2L;
+            when(userRepository.existsById(userId)).thenReturn(true);
+            when(bookRepository.existsById(bookId)).thenReturn(true);
+            when(borrowRecordRepository.findActiveBorrowByUserAndBook(userId, bookId))
+                .thenReturn(Optional.empty());
+
+            // When
+            boolean result = inventoryService.hasUserBorrowedBook(userId, bookId);
+
+            // Then
+            assertThat(result).isFalse();
+            verify(borrowRecordRepository).findActiveBorrowByUserAndBook(userId, bookId);
+        }
+
+        @Test
+        @DisplayName("Should throw when user or book not found for hasUserBorrowedBook")
+        void hasUserBorrowedBook_UserOrBookNotFound_ThrowsException() {
+            // Given
+            Long userId = 1L;
+            Long bookId = 2L;
+            when(userRepository.existsById(userId)).thenReturn(false);
+
+            // When & Then
+            assertThatThrownBy(() -> inventoryService.hasUserBorrowedBook(userId, bookId))
+                .isInstanceOf(ResourceNotFoundException.class)
+                .hasMessageContaining(USER_OR_BOOK_NOT_FOUND);
+        }
     }
 
-    @Test
-    @DisplayName("Should throw exception when book not found")
-    void borrowBook_BookNotFound_ThrowsException() {
-        // Given
-        Long bookId = 999L;
-        when(bookCatalogService.findById(bookId)).thenThrow(ResourceNotFoundException.forBook(bookId));
+    @Nested
+    @DisplayName("Get User's Borrow Records")
+    class getUserBorrowRecordsTests {
 
-        // When & Then
-        assertThatThrownBy(() -> inventoryService.borrowBook(bookId))
-            .isInstanceOf(ResourceNotFoundException.class)
-            .hasMessageContaining("Book with ID 999 not found");
+        @Test
+        @DisplayName("Should get user's borrow records when valid user id")
+        void getUserBorrowRecordsByStatus_WithValidUserId_ReturnsPage() {
+            // Given
+            Long userId = 1L;
+            Pageable pageable = TestDataFactory.createDefaultPageable();
+            BorrowStatus status = BorrowStatus.BORROWED;
+            
+            List<Book> books = Arrays.asList(availableBook);
+            Page<BorrowRecord> expectedPage = TestDataFactory.createDefaultBorrowRecordPage(testUser, books);
+            
+            when(userRepository.findById(userId)).thenReturn(Optional.of(testUser));
+            when(borrowRecordRepository.findByUserIdAndStatus(userId, status, pageable))
+                .thenReturn(expectedPage);
 
-        verify(bookCatalogService).findById(bookId);
-        verify(bookCatalogService, never()).updateBook(any());
-    }
+            // When
+            Page<BorrowRecord> result = inventoryService.getUserBorrowRecordsByStatus(userId, status, pageable);
 
-    @Test
-    @DisplayName("Should throw exception when book not available")
-    void borrowBook_BookNotAvailable_ThrowsException() {
-        // Given
-        Long bookId = 2L;
-        when(bookCatalogService.findById(bookId)).thenReturn(unavailableBook);
+            // Then
+            assertThat(result).isNotNull();
+            assertThat(result.getContent()).hasSize(1);
+            assertThat(result.getContent()).isEqualTo(expectedPage.getContent());
+            
+            verify(userRepository).findById(userId);
+            verify(borrowRecordRepository).findByUserIdAndStatus(userId, status, pageable);
+        }
 
-        // When & Then
-        assertThatThrownBy(() -> inventoryService.borrowBook(bookId))
-            .isInstanceOf(BusinessRuleViolationException.class)
-            .hasMessageContaining("Book 'Clean Code' is not available for borrowing");
+        @Test
+        @DisplayName("Should get user's borrow records filter by status RETURNED")
+        void getUserBorrowRecordsByStatus_filterByStatusReturned_ReturnsPage() {
+            // Given
+            Long userId = 1L;
+            Pageable pageable = TestDataFactory.createDefaultPageable();
+            BorrowStatus status = BorrowStatus.RETURNED;
+            
+            List<BorrowRecord> records = Arrays.asList(returnedBorrowRecord);
+            Page<BorrowRecord> expectedPage = new PageImpl<>(records, pageable, records.size());
+            
+            when(userRepository.findById(userId)).thenReturn(Optional.of(testUser));
+            when(borrowRecordRepository.findByUserIdAndStatus(userId, status, pageable))
+                .thenReturn(expectedPage);
 
-        verify(bookCatalogService).findById(bookId);
-        verify(bookCatalogService, never()).updateBook(any());
-    }
+            // When
+            Page<BorrowRecord> result = inventoryService.getUserBorrowRecordsByStatus(userId, status, pageable);
 
-    // ========== returnBook Tests ==========
+            // Then
+            assertThat(result).isNotNull();
+            assertThat(result.getContent()).hasSize(1);
+            assertThat(result.getContent()).containsExactly(returnedBorrowRecord);
+            assertThat(result.getContent().get(0).getStatus()).isEqualTo(BorrowStatus.RETURNED);
+            
+            verify(userRepository).findById(userId);
+            verify(borrowRecordRepository).findByUserIdAndStatus(userId, status, pageable);
+        }
 
-    @Test
-    @DisplayName("Should successfully return book when valid")
-    void returnBook_ValidReturn_UpdatesInventoryAndReturnsBook() {
-        // Given
-        Long bookId = 1L;
-        // Simulate a book with some borrowed copies
-        Book bookWithBorrowedCopies = TestDataFactory.createCustomBook(availableBook.getIsbn(), availableBook.getTitle(), availableBook.getAuthor(),
-            availableBook.getDescription(), availableBook.getPublicationDate(), availableBook.getGenre(), 5, 2); // 3 copies borrowed
-        bookWithBorrowedCopies.setId(1L);
+        @Test
+        @DisplayName("Should throw ResourceNotFoundException when user is not found")
+        void getUserBorrowRecordsByStatus_userNotFound_throwResourceNotFoundException() {
+            // Given
+            Long userId = 999L;
+            Pageable pageable = TestDataFactory.createDefaultPageable();
+            BorrowStatus status = BorrowStatus.BORROWED;
+            
+            when(userRepository.findById(userId)).thenReturn(Optional.empty());
 
-        Book expectedUpdatedBook =TestDataFactory.createCustomBook(availableBook.getIsbn(), availableBook.getTitle(), availableBook.getAuthor(),
-            availableBook.getDescription(), availableBook.getPublicationDate(), availableBook.getGenre(), 5, 3); // Incremented by 1
-        expectedUpdatedBook.setId(1L);
+            // When & Then
+            assertThatThrownBy(() -> 
+                inventoryService.getUserBorrowRecordsByStatus(userId, status, pageable))
+                .isInstanceOf(ResourceNotFoundException.class)
+                .hasMessageContaining(USER_NOT_FOUND);
+            
+            verify(userRepository).findById(userId);
+            verify(borrowRecordRepository, never())
+                .findByUserIdAndStatus(anyLong(), any(BorrowStatus.class), any(Pageable.class));
+        }
 
-        when(bookCatalogService.findById(bookId)).thenReturn(bookWithBorrowedCopies);
-        when(bookCatalogService.updateBook(any(Book.class))).thenReturn(expectedUpdatedBook);
 
-        // When
-        Book result = inventoryService.returnBook(bookId);
-
-        // Then
-        assertThat(result).isNotNull();
-        assertThat(result.getAvailableCopies()).isEqualTo(3);
-        assertThat(result.getTotalCopies()).isEqualTo(5);
-        
-        verify(bookCatalogService).findById(bookId);
-        verify(bookCatalogService).updateBook(any(Book.class));
-    }
-
-    @Test
-    @DisplayName("Should throw exception when book not found for return")
-    void returnBook_BookNotFound_ThrowsException() {
-        // Given
-        Long bookId = 999L;
-        when(bookCatalogService.findById(bookId)).thenThrow(ResourceNotFoundException.forBook(bookId));
-
-        // When & Then
-        assertThatThrownBy(() -> inventoryService.returnBook(bookId))
-            .isInstanceOf(ResourceNotFoundException.class)
-            .hasMessageContaining("Book with ID 999 not found");
-
-        verify(bookCatalogService).findById(bookId);
-        verify(bookCatalogService, never()).updateBook(any());
-    }
-
-    @Test
-    @DisplayName("Should throw exception when trying to return more copies than total")
-    void returnBook_ExceedsTotalCopies_ThrowsException() {
-        // Given
-        Long bookId = 1L;
-        // Book with all copies already available (none borrowed)
-        Book allCopiesAvailable = TestDataFactory.createCustomBook(
-            availableBook.getIsbn(), availableBook.getTitle(), availableBook.getAuthor(),
-            availableBook.getDescription(), availableBook.getPublicationDate(), availableBook.getGenre(), 5, 5); // All copies available, none borrowed
-        allCopiesAvailable.setId(1L);
-
-        when(bookCatalogService.findById(bookId)).thenReturn(allCopiesAvailable);
-
-        // When & Then
-        assertThatThrownBy(() -> inventoryService.returnBook(bookId))
-            .isInstanceOf(BusinessRuleViolationException.class)
-            .hasMessageContaining("all copies are already available");
-
-        verify(bookCatalogService).findById(bookId);
-        verify(bookCatalogService, never()).updateBook(any());
-    }
-
-    // ========== Edge Cases and Boundary Tests ==========
-
-    @Test
-    @DisplayName("Should handle multiple consecutive borrows correctly")
-    void borrowBook_MultipleBorrows_TracksInventoryCorrectly() {
-        // Given - Simulate borrowing multiple times
-        Long bookId = 1L;
-        
-        // First borrow: 3 -> 2 available
-        Book afterFirstBorrow = TestDataFactory.createCustomBook(availableBook.getIsbn(), availableBook.getTitle(), availableBook.getAuthor(), 
-            availableBook.getDescription(), availableBook.getPublicationDate(), availableBook.getGenre(), 5, 2);  // First borrow: 3 -> 2 available
-
-        afterFirstBorrow.setId(1L);
-
-        when(bookCatalogService.findById(bookId)).thenReturn(availableBook);
-        when(bookCatalogService.updateBook(any(Book.class))).thenReturn(afterFirstBorrow);
-
-        // When
-        Book result = inventoryService.borrowBook(bookId);
-
-        // Then
-        assertThat(result.getAvailableCopies()).isEqualTo(2);
-        verify(bookCatalogService).findById(bookId);
-        verify(bookCatalogService).updateBook(any(Book.class));
-    }
-
-    @Test
-    @DisplayName("Should handle return after multiple borrows")
-    void returnBook_AfterMultipleBorrows_RestoresInventoryCorrectly() {
-        // Given - Book with 2 available out of 5 total (3 borrowed)
-        Long bookId = 1L;
-        Book heavilyBorrowedBook = TestDataFactory.createCustomBook(
-            availableBook.getIsbn(), availableBook.getTitle(), availableBook.getAuthor(), 
-            availableBook.getDescription(), availableBook.getPublicationDate(), availableBook.getGenre(), 5, 2); // 3 copies borrowed
-
-        heavilyBorrowedBook.setId(1L);
-
-        Book afterReturn = TestDataFactory.createCustomBook(
-            availableBook.getIsbn(), availableBook.getTitle(), availableBook.getAuthor(),
-            availableBook.getDescription(), availableBook.getPublicationDate(), availableBook.getGenre(), 5, 3); // Incremented by 1
-        afterReturn.setId(1L);
-
-        when(bookCatalogService.findById(bookId)).thenReturn(heavilyBorrowedBook);
-        when(bookCatalogService.updateBook(any(Book.class))).thenReturn(afterReturn);
-
-        // When
-        Book result = inventoryService.returnBook(bookId);
-
-        // Then
-        assertThat(result.getAvailableCopies()).isEqualTo(3);
-        assertThat(result.getTotalCopies()).isEqualTo(5);
-        verify(bookCatalogService).findById(bookId);
-        verify(bookCatalogService).updateBook(any(Book.class));
     }
 }
