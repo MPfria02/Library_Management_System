@@ -475,8 +475,7 @@ class InventoryControllerSliceTest {
             getUserBorrowRecordsByStatus("INVALID_STATUS")
                     .andExpect(status().isBadRequest());
 
-            verify(inventoryService, never()).getUserBorrowRecords(any(), any());
-            verify(inventoryService, never()).getUserBorrowRecordsByStatus(any(), any(), any());
+            verify(inventoryService, never()).getUserBorrowRecordsByStatus(anyLong(), any(BorrowStatus.class), any(Pageable.class));
             verify(borrowRecordMapper, never()).toResponse(any());
         }
 

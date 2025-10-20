@@ -106,6 +106,12 @@ public class InventoryService {
      */
     public BorrowRecord returnBook(Long userId, Long bookId) {
         log.debug("User {} attempting to return book {}", userId, bookId);
+
+        boolean bothExist = verifyUserAndBookExist(userId, bookId); 
+        if (!bothExist) {
+            log.warn("User {} or Book {} not found", userId, bookId);
+            throw new ResourceNotFoundException("User or Book not found");
+        }
         
         BorrowRecord borrowRecord = findActiveBorrowRecord(userId, bookId);   
         Book book = borrowRecord.getBook();
@@ -130,19 +136,7 @@ public class InventoryService {
         
         return updated;
     }
-
-    /**
-     * Get all borrow records for a user with pagination
-     * 
-     * @param userId User ID
-     * @param pageable Pagination parameters
-     * @return Page of borrow records
-     */
-    @Transactional(readOnly = true)
-    public Page<BorrowRecord> getUserBorrowRecords(Long userId, Pageable pageable) {
-        return borrowRecordRepository.findByUserIdWithBook(userId, pageable);
-    }
-    
+   
     /**
      * Get user's borrow records filtered by status
      * 
@@ -157,6 +151,10 @@ public class InventoryService {
         BorrowStatus status, 
         Pageable pageable
     ) {
+        if (!userRepository.findById(userId).isPresent()) {
+            throw new ResourceNotFoundException("User not found");
+        }
+
         return borrowRecordRepository.findByUserIdAndStatus(userId, status, pageable);
     }
     
@@ -170,6 +168,13 @@ public class InventoryService {
      */
     @Transactional(readOnly = true)
     public boolean hasUserBorrowedBook(Long userId, Long bookId) {
+
+        boolean bothExist = verifyUserAndBookExist(userId, bookId); 
+        if (!bothExist) {
+            log.warn("User {} or Book {} not found", userId, bookId);
+            throw new ResourceNotFoundException("User or Book not found");
+        }
+
         return borrowRecordRepository
             .findActiveBorrowByUserAndBook(userId, bookId)
             .isPresent();
@@ -221,13 +226,12 @@ public class InventoryService {
      */
      private BorrowRecord createBorrowRecord(User user, Book book) {
         LocalDate borrowDate = LocalDate.now();
-        LocalDate dueDate = borrowDate.plusDays(7);
         
         return BorrowRecord.builder()
             .user(user)
             .book(book)
             .borrowDate(borrowDate)
-            .dueDate(dueDate)
+            .dueDate(BorrowRecord.calculateDueDate(borrowDate))
             .status(BorrowStatus.BORROWED)
             .build();
     }
@@ -269,5 +273,16 @@ public class InventoryService {
             .findActiveBorrowByUserAndBook(userId, bookId);
         
          return existingBorrow.isPresent(); 
+    }
+
+       /**
+     * Verify that both user and book exist in the system.
+     * 
+     * @param userId the ID of the user
+     * @param bookId the ID of the book
+     * @return {@code true} if both exist, {@code false} otherwise
+     */
+    private boolean verifyUserAndBookExist(Long userId, Long bookId) {
+        return (userRepository.existsById(userId) && bookRepository.existsById(bookId));
     }
 }
