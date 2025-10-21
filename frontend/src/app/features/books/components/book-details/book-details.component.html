@@ -57,32 +57,53 @@
       </mat-card-content>
 
       <mat-card-actions>
-        <!-- Borrow Button -->
-        @if (isBookAvailable()) {
-          <button
-            mat-raised-button
-            color="primary"
-            (click)="borrowBook()"
-            [disabled]="actionInProgress()"
-          >
-            @if (actionInProgress()) {
-              <mat-spinner diameter="20"></mat-spinner>
-            } @else {
-              <mat-icon>bookmark_add</mat-icon>
-            }
-            Borrow Book
-          </button>
-        } @else {
-          <button
-            mat-raised-button
-            color="primary"
-            disabled
-            matTooltip="No copies available"
-          >
-            <mat-icon>bookmark_add</mat-icon>
-            Borrow Book
-          </button>
-        }
+        @if (checkingStatus()) {
+                <mat-spinner diameter="24"></mat-spinner>
+              } @else {
+                @if (showReturnButton) {
+                  <!-- 🆕 Return button (user has borrowed this book) -->
+                  <button 
+                    mat-raised-button 
+                    color="accent"
+                    [disabled]="actionInProgress()"
+                    (click)="returnBook()">
+                    @if (actionInProgress()) {
+                      <mat-spinner diameter="20"></mat-spinner>
+                    } @else {
+                      <mat-icon>keyboard_return</mat-icon>
+                      Return Book
+                    }
+                  </button>
+                  
+                  <!-- 🆕 Link to view in "My Books" -->
+                  <button 
+                    mat-stroked-button
+                    (click)="viewInMyBooks()">
+                    View in My Books
+                  </button>
+                } @else {
+                  <!-- Borrow button (user hasn't borrowed this book) -->
+                  <button 
+                    mat-raised-button 
+                    color="primary"
+                    [disabled]="!canBorrow || actionInProgress()"
+                    (click)="borrowBook()">
+                    @if (actionInProgress()) {
+                      <mat-spinner diameter="20"></mat-spinner>
+                    } @else {
+                      <mat-icon>add_circle</mat-icon>
+                      Borrow Book
+                    }
+                  </button>
+
+                  @if (!canBorrow && book()!.availableCopies === 0) {
+                    <p class="unavailable-message">
+                      <mat-icon>info</mat-icon>
+                      No copies currently available
+                    </p>
+                  }
+                }
+              }
       </mat-card-actions>
     </mat-card>
   </div>

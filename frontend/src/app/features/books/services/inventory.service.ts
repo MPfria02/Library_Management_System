@@ -1,7 +1,7 @@
 import { Injectable, inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Observable } from 'rxjs';
-import { BookResponse } from '../models/book.model';
+import { BorrowRecordResponse, BorrowStatusResponse } from '../../borrows/models/borrow-record.model';
 
 @Injectable({ providedIn: 'root' })
 export class InventoryService {
@@ -9,23 +9,36 @@ export class InventoryService {
   private http = inject(HttpClient);
 
   /**
-   * Borrow a book by its ID.
-   * Decrements availableCopies by 1 on success.
-   * @param bookId The ID of the book to borrow
-   * @returns Observable of the updated BookResponse
+   * Borrow a book
+   * Returns borrow record
    */
-  borrowBook(bookId: number): Observable<BookResponse> {
-    return this.http.post<BookResponse>(`${this.apiUrl}/${bookId}/borrow`, null);
+  borrowBook(bookId: number): Observable<BorrowRecordResponse> {
+    return this.http.post<BorrowRecordResponse>(
+      `${this.apiUrl}/${bookId}/borrow`,
+      null
+    );
   }
 
-  /**
-   * Return a book by its ID.
-   * Increments availableCopies by 1 on success.
-   * @param bookId The ID of the book to return
-   * @returns Observable of the updated BookResponse
+
+    /**
+   * Return a borrowed book
+   * Returns updated borrow record with return date
    */
-  returnBook(bookId: number): Observable<BookResponse> {
-    return this.http.post<BookResponse>(`${this.apiUrl}/${bookId}/return`, null);
+  returnBook(bookId: number): Observable<BorrowRecordResponse> {
+    return this.http.post<BorrowRecordResponse>(
+      `${this.apiUrl}/${bookId}/return`,
+      null
+    );
+  }
+  
+   /**
+   * Check if current user has borrowed a specific book
+   * Used to show correct button (Borrow vs Return) on book details page
+   */
+  checkBorrowStatus(bookId: number): Observable<BorrowStatusResponse> {
+    return this.http.get<BorrowStatusResponse>(
+      `${this.apiUrl}/${bookId}/status`
+    );
   }
 }
 

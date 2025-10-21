@@ -12,6 +12,7 @@ import { DatePipe } from '@angular/common';
 import { BookResponse } from '../../models/book.model';
 import { BookService } from '../../services/book.service';
 import { InventoryService } from '../../services/inventory.service';
+import { BorrowRecordResponse } from '../../../borrows/models/borrow-record.model';
 
 @Component({
   selector: 'app-book-details',
@@ -32,8 +33,11 @@ import { InventoryService } from '../../services/inventory.service';
 })
 export class BookDetailsComponent implements OnInit {
   book = signal<BookResponse | null>(null);
+  borrowRecord = signal<BorrowRecordResponse | null>(null);
   loading = signal<boolean>(true);
   actionInProgress = signal<boolean>(false);
+  hasBorrowed = signal<boolean>(false);
+  checkingStatus = signal<boolean>(false);
 
   private bookService = inject(BookService);
   private inventoryService = inject(InventoryService);
@@ -42,28 +46,34 @@ export class BookDetailsComponent implements OnInit {
   private snackBar = inject(MatSnackBar);
 
   ngOnInit(): void {
-    this.loadBook();
+    const bookIdParam = Number(this.route.snapshot.paramMap.get('id'));
+    if (isNaN(bookIdParam)) {
+      this.snackBar.open('Invalid book ID', 'Close', { duration: 3000 });
+      this.router.navigate(['/dashboard']);
+      return;
+    }
+    this.loadBook(bookIdParam);
+    this.checkBorrowStatus(bookIdParam); 
+  }
+  
+  checkBorrowStatus(bookId: number): void {
+    this.checkingStatus.set(true);
+    this.inventoryService.checkBorrowStatus(bookId).subscribe({
+      next: (response) => {
+        this.hasBorrowed.set(response.borrowed);
+        this.checkingStatus.set(false);
+      },
+      error: (error) => {
+        console.error('Error checking borrow status:', error);
+        this.checkingStatus.set(false);
+      }
+    });
   }
 
   /** Load book by ID from route parameters */
-  private loadBook(): void {
-    const bookIdParam = this.route.snapshot.paramMap.get('id');
-    
-    if (!bookIdParam) {
-      this.snackBar.open('Invalid book ID', 'Close', { duration: 3000 });
-      this.router.navigate(['/dashboard']);
-      return;
-    }
-
-    const bookId = Number(bookIdParam);
-    if (isNaN(bookId)) {
-      this.snackBar.open('Invalid book ID', 'Close', { duration: 3000 });
-      this.router.navigate(['/dashboard']);
-      return;
-    }
-
+  private loadBook(bookIdParam: number): void {
     this.loading.set(true);
-    this.bookService.getBookById(bookId).subscribe({
+    this.bookService.getBookById(bookIdParam).subscribe({
       next: (book: BookResponse) => {
         this.book.set(book);
         this.loading.set(false);
@@ -91,8 +101,19 @@ export class BookDetailsComponent implements OnInit {
 
     this.actionInProgress.set(true);
     this.inventoryService.borrowBook(book.id).subscribe({
-      next: (updatedBook: BookResponse) => {
-        this.book.set(updatedBook);
+      next: (borrowRecord: BorrowRecordResponse) => {
+        
+        this.borrowRecord.set(borrowRecord);
+
+        this.book.update(current => {
+        if (!current) return current;
+          return {
+            ...current,
+            availableCopies: current.availableCopies - 1
+          };
+        });
+
+        this.hasBorrowed.set(true);  
         this.actionInProgress.set(false);
         this.snackBar.open('Book borrowed successfully', 'Close', { duration: 3000 });
       },
@@ -106,15 +127,54 @@ export class BookDetailsComponent implements OnInit {
     });
   }
 
+  returnBook(): void {
+    const book = this.book();
+    if (!book || this.actionInProgress()) {
+      return;
+    }
+
+    this.actionInProgress.set(true);
+    this.inventoryService.returnBook(book.id).subscribe({
+      next: (borrowRecord: BorrowRecordResponse) => {  // 🔄 Now receives BorrowRecordResponse
+        // Update local book state
+        this.book.update(b => b ? {
+          ...b,
+          availableCopies: b.availableCopies + 1
+        } : null);
+        
+        this.hasBorrowed.set(false);  // 🆕 Update borrow status
+        this.actionInProgress.set(false);
+        
+        this.snackBar.open('Book returned successfully', 'Close', { duration: 3000 });
+      },
+      error: (error) => {
+        console.error('Error returning book:', error);
+        this.actionInProgress.set(false);
+        this.snackBar.open(
+          error.error?.message || 'Failed to return book',
+          'Close',
+          { duration: 3000 }
+        );
+      }
+    });
+  }
+
   /** Navigate back to catalog */
   backToCatalog(): void {
     this.router.navigate(['/dashboard']);
   }
 
+  /** See book in My-Books page */
+  viewInMyBooks(): void {
+    this.router.navigate(['/dashboard/my-books']);
+  }
+
   /** Check if book is available for borrowing */
-  isBookAvailable(): boolean {
+  get canBorrow(): boolean {
     const book = this.book();
-    return book ? book.availableCopies > 0 : false;
+    return book !== null && 
+           book.availableCopies > 0 && 
+           !this.hasBorrowed();  // 🆕 Can't borrow if already borrowed
   }
 
   /** Get availability text */
@@ -123,5 +183,9 @@ export class BookDetailsComponent implements OnInit {
     if (!book) return '';
     
     return `${book.availableCopies} copies available`;
+  }
+
+   get showReturnButton(): boolean {
+    return this.hasBorrowed();
   }
 }
