@@ -1,0 +1,268 @@
+// ------------------------------
+// My Books Page Styling
+// Theme: Azure / Blue
+// ------------------------------
+
+.my-books-container {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  padding: 2rem;
+  background: #f9fafc; // soft neutral background
+  min-height: 100%;
+  color: #1b1f3b; // deep slate tone
+  box-sizing: border-box;
+
+  // subtle fade-in animation for smooth UX
+  animation: fadeIn 0.3s ease-in-out;
+}
+
+// ------------------------------
+// Header
+// ------------------------------
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 1rem;
+
+  h1 {
+    font-weight: 600;
+    color: #0d3b66; // Azure blue shade
+    margin: 0;
+  }
+
+  button {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    border-color: #0078d4;
+    color: #0078d4;
+    transition: all 0.2s ease-in-out;
+
+    &:hover {
+      background-color: #0078d4;
+      color: #fff;
+
+      mat-icon {
+        color: #fff;
+      }
+    }
+
+    mat-icon {
+      color: #0078d4;
+      font-size: 20px;
+    }
+  }
+}
+
+// ------------------------------
+// Filter Toggle
+// ------------------------------
+.filter-toggle {
+  align-self: flex-start;
+
+  ::ng-deep .mat-button-toggle-checked {
+    background-color: #0078d4 !important;
+    color: #fff !important;
+  }
+
+  ::ng-deep .mat-button-toggle {
+    border-color: #d0d7e2;
+    color: #1b1f3b;
+    font-weight: 500;
+    transition: all 0.2s ease-in-out;
+
+    &:hover {
+      background-color: rgba(0, 120, 212, 0.08);
+    }
+  }
+}
+
+// ------------------------------
+// Loading State
+// ------------------------------
+.loading-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
+  margin-top: 4rem;
+
+  p {
+    color: #555;
+  }
+
+  mat-spinner {
+    --mdc-circular-progress-active-indicator-color: #0078d4;
+  }
+}
+
+// ------------------------------
+// Empty State
+// ------------------------------
+.empty-state {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  text-align: center;
+  padding: 3rem 2rem;
+  border: 1px dashed #cfd8e3;
+  border-radius: 12px;
+  background: #ffffff;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.05);
+
+  .mat-mdc-card-content {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.75rem;
+  }
+
+  .empty-icon {
+    font-size: 48px;
+    color: #0078d4;
+    margin-bottom: 0.5rem;
+  }
+
+  h2 {
+    margin: 0.5rem 0;
+    color: #1b1f3b;
+    font-weight: 600;
+  }
+
+  p {
+    color: #6b7280;
+  }
+
+  button {
+    margin-top: 1rem;
+    background-color: #0078d4;
+    color: #fff;
+
+    &:hover {
+      background-color: #005a9e;
+    }
+  }
+}
+
+// ------------------------------
+// Borrow List & Pagination
+// ------------------------------
+.borrow-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 1.5rem;
+  margin-top: 1rem;
+}
+
+mat-paginator {
+  margin-top: 2rem;
+  align-self: center;
+  background: transparent;
+
+  ::ng-deep .mat-mdc-paginator-range-actions button {
+    color: #0078d4 !important;
+
+    &:hover {
+      background-color: rgba(0, 120, 212, 0.1);
+      border-radius: 6px;
+    }
+  }
+}
+
+// ------------------------------
+// Animation
+// ------------------------------
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+// ------------------------------
+// Responsive Design
+// ------------------------------
+
+@media (max-width: 1024px) {
+  .my-books-container {
+    padding: 1.5rem;
+  }
+
+  .header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.75rem;
+
+    h1 {
+      font-size: 1.4rem;
+    }
+
+    button {
+      align-self: flex-end;
+    }
+  }
+
+  .borrow-list {
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  }
+}
+
+@media (max-width: 768px) {
+  .my-books-container {
+    padding: 1rem;
+  }
+
+  .filter-toggle {
+    width: 100%;
+    display: flex;
+    justify-content: space-around;
+  }
+
+  .header button {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .empty-state {
+    padding: 2rem 1.25rem;
+
+    h2 {
+      font-size: 1.1rem;
+    }
+
+    p {
+      font-size: 0.9rem;
+    }
+
+    button {
+      width: 100%;
+    }
+  }
+}
+
+@media (max-width: 480px) {
+  .borrow-list {
+    grid-template-columns: 1fr;
+  }
+
+  .header h1 {
+    font-size: 1.2rem;
+  }
+
+  .filter-toggle {
+    flex-direction: column;
+    align-items: stretch;
+
+    ::ng-deep .mat-button-toggle {
+      width: 100%;
+      text-align: center;
+    }
+  }
+}

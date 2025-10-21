@@ -1,0 +1,223 @@
+// ----------------------------------------
+// Borrow Card Styles
+// Theme: Azure / Blue
+// ----------------------------------------
+
+.borrow-card {
+  border-radius: 12px;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
+  background-color: #ffffff;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+
+  &:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  }
+
+  mat-card-content {
+    padding: 1.25rem 1.5rem;
+  }
+}
+
+// ----------------------------------------
+// Layout
+// ----------------------------------------
+.card-layout {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1.5rem;
+  flex-wrap: wrap;
+}
+
+// ----------------------------------------
+// Book Info
+// ----------------------------------------
+.book-info {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  flex: 1 1 40%;
+
+  .book-icon {
+    font-size: 40px;
+    color: #0078d4;
+  }
+
+  .book-details {
+    .book-title {
+      font-weight: 600;
+      color: #0d3b66;
+      margin: 0;
+    }
+
+    .book-author {
+      margin: 0.25rem 0;
+      color: #6b7280;
+    }
+
+    .book-isbn {
+      font-size: 0.85rem;
+      color: #9ca3af;
+    }
+  }
+}
+
+// ----------------------------------------
+// Borrow Info (Status & Dates)
+// ----------------------------------------
+.borrow-info {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  flex: 1 1 35%;
+  gap: 0.5rem;
+
+  .status-chip {
+    font-weight: 500;
+    border-radius: 8px;
+    height: 26px;
+    line-height: 26px;
+    padding: 0 0.75rem;
+
+    &.active {
+      background-color: #0078d4;
+      color: #ffffff;
+    }
+
+    &.returned {
+      background-color: #d1e7ff;
+      color: #0d3b66;
+    }
+  }
+
+  .dates {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+
+    .date-row {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      color: #374151;
+      font-size: 0.9rem;
+
+      .label {
+        font-weight: 500;
+        color: #1b1f3b;
+      }
+
+      &.overdue {
+        color: #b91c1c; // Red tone for overdue
+        font-weight: 600;
+
+        .label {
+          color: #b91c1c;
+        }
+
+        .overdue-icon {
+          font-size: 18px;
+          color: #b91c1c;
+          vertical-align: middle;
+        }
+      }
+
+      .due-date {
+        display: flex;
+        align-items: center;
+        gap: 0.25rem;
+      }
+    }
+  }
+}
+
+// ----------------------------------------
+// Actions
+// ----------------------------------------
+.card-actions {
+  flex: 1 1 20%;
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+
+  button {
+    font-weight: 500;
+    text-transform: none;
+    transition: background-color 0.2s ease;
+
+    &:hover {
+      background-color: rgba(0, 120, 212, 0.08);
+    }
+  }
+}
+
+// ----------------------------------------
+// Responsive Refinements (Material Design)
+// ----------------------------------------
+
+@media (max-width: 1279px) {
+  .card-layout {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 1rem;
+  }
+
+  .book-info,
+  .borrow-info,
+  .card-actions {
+    flex: 1 1 100%;
+  }
+
+  .card-actions {
+    justify-content: flex-start;
+  }
+}
+
+@media (max-width: 959px) {
+  .borrow-card {
+    mat-card-content {
+      padding: 1rem 1.25rem;
+    }
+  }
+
+  .book-info {
+    .book-icon {
+      font-size: 36px;
+    }
+
+    .book-title {
+      font-size: 1rem;
+    }
+  }
+
+  .borrow-info .dates .date-row {
+    font-size: 0.85rem;
+  }
+
+  .card-actions button {
+    width: 100%;
+    justify-content: center;
+  }
+}
+
+@media (max-width: 599px) {
+  .borrow-card {
+    mat-card-content {
+      padding: 0.75rem 1rem;
+    }
+  }
+
+  .book-info {
+    flex-direction: column;
+    align-items: flex-start;
+
+    .book-icon {
+      font-size: 32px;
+    }
+  }
+
+  .card-actions {
+    margin-top: 0.5rem;
+  }
+}

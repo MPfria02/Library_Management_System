@@ -20,7 +20,7 @@ export interface BorrowRecordResponse {
 
 // For filter toggle UI
 export interface BorrowFilter {
-  status: BorrowStatus | 'ALL';  // ALL = no filter
+  status: BorrowStatus; 
 }
 
 // For status check endpoint response
