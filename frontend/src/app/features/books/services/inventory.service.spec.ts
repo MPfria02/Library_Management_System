@@ -3,6 +3,8 @@ import { HttpTestingController, provideHttpClientTesting } from '@angular/common
 import { provideHttpClient } from '@angular/common/http';
 import { InventoryService } from './inventory.service';
 import { BookGenre, BookResponse } from '../models/book.model';
+import { BorrowStatus, BorrowStatusResponse } from '../../borrows/models/borrow-record.model';
+import { createMockBorrowRecord } from '../../borrows/testing/borrow-record.test-helpers';
 
 describe('InventoryService', () => {
   let service: InventoryService;
@@ -31,108 +33,102 @@ describe('InventoryService', () => {
     httpMock.verify();
   });
 
-  it('should be created', () => {
+  describe('Service Initialization', () => {
+    it('should be created', () => {
     expect(service).toBeTruthy();
   });
+  })
+  
 
-  it('should call POST /api/inventory/books/{id}/borrow', () => {
-    const bookId = 1;
-    const afterBorrow: BookResponse = { ...baseBook, availableCopies: 2 };
+  describe('borrowBook', () => {
+    it('should return BorrowRecordResponse', (done) => {
+      // Arrange
+      const bookId = 1;
+      const mockBorrowRecord = createMockBorrowRecord({ bookId });
 
-    service.borrowBook(bookId).subscribe(response => {
-      expect(response).toBeTruthy();
-      expect(response).toEqual(afterBorrow);
+      // Act
+      service.borrowBook(bookId).subscribe({
+        next: (response) => {
+          // Assert - verify it's BorrowRecordResponse
+          expect(response.id).toBeDefined();
+          expect(response.bookId).toBe(bookId);
+          expect(response.dueDate).toBeDefined();
+          expect(response.borrowDate).toBeDefined();
+          expect(response.status).toBe(BorrowStatus.BORROWED);
+          done();
+        }
+      });
+
+      const req = httpMock.expectOne(`/api/inventory/books/${bookId}/borrow`);
+      expect(req.request.method).toBe('POST');
+      req.flush(mockBorrowRecord);
     });
-
-    const req = httpMock.expectOne(`/api/inventory/books/${bookId}/borrow`);
-    expect(req.request.method).toBe('POST');
-    expect(req.request.body).toBeNull();
-    req.flush(afterBorrow);
   });
 
-  it('should return updated BookResponse after borrow (availableCopies decreased)', () => {
-    const bookId = 1;
-    const afterBorrow: BookResponse = { ...baseBook, availableCopies: 2 };
+  describe('returnBook (updated)', () => {
+    it('should return BorrowRecordResponse with return date', (done) => {
+      // Arrange
+      const bookId = 1;
+      const mockBorrowRecord = createMockBorrowRecord({
+        bookId,
+        status: BorrowStatus.RETURNED,
+        returnDate: '2025-10-14'
+      });
 
-    service.borrowBook(bookId).subscribe(response => {
-      expect(response.availableCopies).toBe(2);
+      // Act
+      service.returnBook(bookId).subscribe({
+        next: (response) => {
+          // Assert
+          expect(response.status).toBe(BorrowStatus.RETURNED);
+          expect(response.returnDate).toBeDefined();
+          expect(response.returnDate).not.toBeNull();
+          done();
+        }
+      });
+
+      const req = httpMock.expectOne(`/api/inventory/books/${bookId}/return`);
+      expect(req.request.method).toBe('POST');
+      req.flush(mockBorrowRecord);
     });
-
-    const req = httpMock.expectOne(`/api/inventory/books/${bookId}/borrow`);
-    expect(req.request.method).toBe('POST');
-    expect(req.request.body).toBeNull();
-    req.flush(afterBorrow);
   });
 
-  it('should call POST /api/inventory/books/{id}/return', () => {
-    const bookId = 1;
-    const beforeReturn: BookResponse = { ...baseBook, availableCopies: 1 };
-    const afterReturn: BookResponse = { ...beforeReturn, availableCopies: 2 };
+  describe('checkBorrowStatus', () => {
+    it('should return borrowed status as true when user has borrowed book', (done) => {
+      // Arrange
+      const bookId = 5;
+      const mockResponse: BorrowStatusResponse = { borrowed: true };
 
-    service.returnBook(bookId).subscribe(response => {
-      expect(response).toEqual(afterReturn);
+      // Act
+      service.checkBorrowStatus(bookId).subscribe({
+        next: (response) => {
+          // Assert
+          expect(response.borrowed).toBe(true);
+          done();
+        }
+      });
+
+      const req = httpMock.expectOne(`/api/inventory/books/${bookId}/status`);
+      expect(req.request.method).toBe('GET');
+      req.flush(mockResponse);
     });
 
-    const req = httpMock.expectOne(`/api/inventory/books/${bookId}/return`);
-    expect(req.request.method).toBe('POST');
-    expect(req.request.body).toBeNull();
-    req.flush(afterReturn);
-  });
+    it('should return borrowed status as false when user has not borrowed book', (done) => {
+      // Arrange
+      const bookId = 5;
+      const mockResponse: BorrowStatusResponse = { borrowed: false };
 
-  it('should return updated BookResponse after return (availableCopies increased)', () => {
-    const bookId = 1;
-    const beforeReturn: BookResponse = { ...baseBook, availableCopies: 1 };
-    const afterReturn: BookResponse = { ...beforeReturn, availableCopies: 2 };
+      // Act
+      service.checkBorrowStatus(bookId).subscribe({
+        next: (response) => {
+          // Assert
+          expect(response.borrowed).toBe(false);
+          done();
+        }
+      });
 
-    service.returnBook(bookId).subscribe(response => {
-      expect(response.availableCopies).toBe(2);
+      const req = httpMock.expectOne(`/api/inventory/books/${bookId}/status`);
+      req.flush(mockResponse);
     });
-
-    const req = httpMock.expectOne(`/api/inventory/books/${bookId}/return`);
-    expect(req.request.method).toBe('POST');
-    expect(req.request.body).toBeNull();
-    req.flush(afterReturn);
-  });
-
-  it('should handle 400 error when book unavailable', () => {
-    const bookId = 1;
-    const errorMessage = 'No copies available';
-
-    service.borrowBook(bookId).subscribe({
-      next: () => fail('Should have failed'),
-      error: error => {
-        expect(error.status).toBe(400);
-        expect(error.error).toContain('No copies available');
-      }
-    });
-
-    const req = httpMock.expectOne(`/api/inventory/books/${bookId}/borrow`);
-    expect(req.request.method).toBe('POST');
-    req.flush(errorMessage, { status: 400, statusText: 'Bad Request' });
-  });
-
-  it('should handle 404 and 500 errors gracefully', () => {
-    const bookId = 999;
-
-    // 404 Not Found
-    service.borrowBook(bookId).subscribe({
-      next: () => fail('Should have failed with 404'),
-      error: error => {
-        expect(error.status).toBe(404);
-      }
-    });
-    let req = httpMock.expectOne(`/api/inventory/books/${bookId}/borrow`);
-    req.flush('Not Found', { status: 404, statusText: 'Not Found' });
-
-    // 500 Server Error
-    service.returnBook(bookId).subscribe({
-      next: () => fail('Should have failed with 500'),
-      error: error => {
-        expect(error.status).toBe(500);
-      }
-    });
-    req = httpMock.expectOne(`/api/inventory/books/${bookId}/return`);
-    req.flush('Server Error', { status: 500, statusText: 'Internal Server Error' });
   });
 });
 

@@ -2,15 +2,15 @@
   <h1>Book Management</h1>
   <div class="actions">
     <button mat-stroked-button color="primary" aria-label="Search and Filter" (click)="openFilterDialog()">
-      <mat-icon>filter_list</mat-icon>
+      <img src="/assets/icons/search.png" alt="search" class="search-icon">
       Search/Filter
     </button>
     <button mat-raised-button color="primary" aria-label="Add New Book" (click)="addNewBook()">
-      <mat-icon>add</mat-icon>
+      <img src="/assets/icons/add-book.png" alt="add-book-icon" class="add-book-icon">
       Add New Book
     </button>
     <button mat-stroked-button color="accent" aria-label="User Management" (click)="navigateToUsers()">
-      <mat-icon>people</mat-icon>
+       <img src="/assets/icons/user-management.png" alt="user-management-icon" class="user-management-icon">
       User Management
     </button>
   </div>
@@ -76,15 +76,24 @@
 
       <!-- Actions Column -->
       <ng-container matColumnDef="actions">
-        <th mat-header-cell *matHeaderCellDef>Actions</th>
-        <td mat-cell *matCellDef="let book">
-          <button mat-icon-button aria-label="Edit book" (click)="editBook(book.id)">
-            <mat-icon>edit</mat-icon>
-          </button>
-          <button mat-icon-button color="warn" aria-label="Delete book" (click)="deleteBook(book)">
-            <mat-icon>delete</mat-icon>
-          </button>
-        </td>
+          <th mat-header-cell *matHeaderCellDef>Actions</th>
+          <td mat-cell *matCellDef="let book" class="actions-cell">
+            <button
+              mat-icon-button
+              aria-label="Edit book"
+              class="action-btn edit-btn"
+              (click)="editBook(book.id)">
+              <img src="/assets/icons/edit.svg" alt="edit-icon" class="action-icon" />
+            </button>
+
+            <button
+              mat-icon-button
+              aria-label="Delete book"
+              class="action-btn delete-btn"
+              (click)="deleteBook(book)">
+              <img src="/assets/icons/delete.svg" alt="delete-icon" class="action-icon" />
+            </button>
+          </td>
       </ng-container>
 
       <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>

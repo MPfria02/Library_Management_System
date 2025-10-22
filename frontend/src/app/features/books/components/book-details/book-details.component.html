@@ -12,78 +12,112 @@
     <!-- Back Button -->
     <div class="back-button-container">
       <button mat-button (click)="backToCatalog()">
-        <mat-icon>arrow_back</mat-icon>
+        <img src="/assets/icons/back.png" alt="arrow-back" class="icon">
         Back to Catalog
       </button>
     </div>
 
     <!-- Book Card -->
     <mat-card class="book-details-card">
-      <mat-card-header>
-        <mat-icon mat-card-avatar class="book-icon">menu_book</mat-icon>
-        <mat-card-title>{{ book()!.title }}</mat-card-title>
-        <mat-card-subtitle>{{ book()!.author }}</mat-card-subtitle>
-      </mat-card-header>
-
-      <mat-card-content>
-        <!-- Genre -->
-        <div class="genre-container">
-          <mat-chip class="genre-chip">{{ book()!.genre }}</mat-chip>
+      <div class="book-details-content">
+        <!-- 🖼️ Left: Book Image -->
+        <div class="book-image-container">
+          <img
+            class="book-image"
+            [src]="'assets/images/book-placeholder.png'"
+            alt="{{ book()!.title }} cover"
+          />
         </div>
 
-        <!-- Publication Date -->
-        <div class="publication-date">
-          <mat-icon>calendar_today</mat-icon>
-          <span>{{ book()!.publicationDate | date:'MMMM d, yyyy' }}</span>
-        </div>
+        <!-- 📘 Right: Book Info -->
+        <div class="book-info-container">
+          <mat-card-header>
+            <mat-card-title>{{ book()!.title }}</mat-card-title>
+            <mat-card-subtitle>{{ book()!.author }}</mat-card-subtitle>
+          </mat-card-header>
 
+          <mat-card-content>
+            <!-- Genre -->
+            <div class="genre-container">
+              <mat-chip class="genre-chip">{{ book()!.genre }}</mat-chip>
+            </div>
 
-        <!-- Availability -->
-        <div class="availability">
-          <mat-icon
-            [class.available]="book()!.availableCopies > 0"
-            [class.unavailable]="book()!.availableCopies === 0"
-          >
-            {{ book()!.availableCopies > 0 ? 'check_circle' : 'cancel' }}
-          </mat-icon>
-          <span>{{ getAvailabilityText() }}</span>
-        </div>
+            <!-- Publication Date -->
+            <div class="publication-date">
+              <img src="/assets/icons/calendar.png" alt="calendar-icon" class="calendar-icon">
+              <span>{{ book()!.publicationDate | date:'MMMM d, yyyy' }}</span>
+            </div>
 
-        <!-- Description -->
-        <div class="description">
-          <h3>Description</h3>
-          <p>{{ book()!.description }}</p>
-        </div>
-      </mat-card-content>
+            <!-- Availability -->
+            <div class="availability">
+              <img
+              [src]="book()!.availableCopies  > 0 ? '/assets/icons/available.png' : '/assets/icons/unavailable.png'"
+              [alt]="book()!.availableCopies  > 0 ? 'Available' : 'Unavailable'"
+              class="availability-icon"
+            />
+            {{ getAvailabilityText()}}
+            </div>
 
-      <mat-card-actions>
-        <!-- Borrow Button -->
-        @if (isBookAvailable()) {
-          <button
-            mat-raised-button
-            color="primary"
-            (click)="borrowBook()"
-            [disabled]="actionInProgress()"
-          >
-            @if (actionInProgress()) {
-              <mat-spinner diameter="20"></mat-spinner>
+            <!-- Description -->
+            <div class="description">
+              <h3>Description</h3>
+              <p>{{ book()!.description }}</p>
+            </div>
+          </mat-card-content>
+
+          <mat-card-actions>
+            @if (checkingStatus()) {
+              <mat-spinner diameter="24"></mat-spinner>
             } @else {
-              <mat-icon>bookmark_add</mat-icon>
+              @if (showReturnButton) {
+                <!-- 🆕 Return button -->
+                <button 
+                  mat-raised-button 
+                  color="accent"
+                  class="return-button"
+                  [disabled]="actionInProgress()"
+                  (click)="returnBook()">
+                  @if (actionInProgress()) {
+                    <mat-spinner diameter="20"></mat-spinner>
+                  } @else {
+                    <img src="/assets/icons/return.png" alt="return-icon" class="return-icon">
+                    Return Book
+                  }
+                </button>
+
+                <!-- 🆕 Link to view in "My Books" -->
+                <button 
+                  mat-stroked-button
+                  class="view-my-books-button"
+                  (click)="viewInMyBooks()">
+                  View in My Books
+                </button>
+              } @else {
+                <!-- Borrow button -->
+                <button 
+                  mat-raised-button 
+                  color="primary"
+                  class="borrow-button"
+                  [disabled]="!canBorrow || actionInProgress()"
+                  (click)="borrowBook()">
+                  @if (actionInProgress()) {
+                    <mat-spinner diameter="20"></mat-spinner>
+                  } @else {
+                    <img src="/assets/icons/borrow.png" alt="borrow-icon" class="borrow-icon">
+                    Borrow Book
+                  }
+                </button>
+
+                @if (!canBorrow && book()!.availableCopies === 0) {
+                  <p class="unavailable-message">
+                    No copies currently available
+                  </p>
+                }
+              }
             }
-            Borrow Book
-          </button>
-        } @else {
-          <button
-            mat-raised-button
-            color="primary"
-            disabled
-            matTooltip="No copies available"
-          >
-            <mat-icon>bookmark_add</mat-icon>
-            Borrow Book
-          </button>
-        }
-      </mat-card-actions>
+          </mat-card-actions>
+        </div>
+      </div>
     </mat-card>
   </div>
 }

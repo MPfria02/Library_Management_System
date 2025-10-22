@@ -1,0 +1,61 @@
+<!-- src/app/features/borrows/components/borrow-card/borrow-card.component.html -->
+
+<mat-card class="borrow-card">
+  <mat-card-content>
+    <div class="card-layout">
+      <!-- Book Info Section -->
+      <div class="book-info">
+        <img src="/assets/icons/book.png" alt="book-icon" class="book-icon">
+        <div class="book-details">
+          <h3 class="book-title">{{ borrowRecord.bookTitle }}</h3>
+          <p class="book-author">by {{ borrowRecord.bookAuthor }}</p>
+          <p class="book-isbn">ISBN: {{ borrowRecord.bookIsbn }}</p>
+        </div>
+      </div>
+
+      <!-- Status & Dates Section -->
+      <div class="borrow-info">
+        <!-- Status Badge -->
+        @if (borrowRecord.status === BorrowStatus.BORROWED) {
+          <mat-chip class="status-chip active">Active</mat-chip>
+        } @else {
+          <mat-chip class="status-chip returned">Returned</mat-chip>
+        }
+
+        <!-- Date Information -->
+        <div class="dates">
+          <div class="date-row">
+            <span class="label">Borrowed:</span>
+            <span>{{ borrowRecord.borrowDate | date: 'MMM d, y' }}</span>
+          </div>
+
+          @if (borrowRecord.status === BorrowStatus.BORROWED) {
+            <!-- Active: Show due date with overdue indicator -->
+            <div class="date-row" [class.overdue]="borrowRecord.isOverdue">
+              <span class="label">Due:</span>
+              <span class="due-date">
+                {{ borrowRecord.dueDate | date: 'MMM d, y' }}
+                @if (borrowRecord.isOverdue) {
+                  <mat-icon class="overdue-icon">warning</mat-icon>
+                }
+              </span>
+            </div>
+          } @else {
+            <!-- Returned: Show return date -->
+            <div class="date-row">
+              <span class="label">Returned:</span>
+              <span>{{ borrowRecord.returnDate | date: 'MMM d, y' }}</span>
+            </div>
+          }
+        </div>
+      </div>
+
+      <!-- Actions Section -->
+      <div class="card-actions">
+        <button mat-button color="primary" (click)="onViewDetails()">
+          View Book Details
+        </button>
+      </div>
+    </div>
+  </mat-card-content>
+</mat-card>

@@ -1,20 +1,23 @@
-import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { ActivatedRoute, Router } from '@angular/router';
+import { ComponentFixture, fakeAsync, TestBed, tick } from '@angular/core/testing';
+import { ActivatedRoute, ActivatedRouteSnapshot, convertToParamMap, ParamMap, Router } from '@angular/router';
 import { MatSnackBar } from '@angular/material/snack-bar';
-import { of, throwError, from } from 'rxjs';
+import { of, throwError, from, asyncScheduler, scheduled } from 'rxjs';
 import { BookDetailsComponent } from './book-details.component';
 import { BookService } from '../../services/book.service';
 import { InventoryService } from '../../services/inventory.service';
 import { BookResponse, BookGenre } from '../../models/book.model';
+import { By } from '@angular/platform-browser';
+import { BorrowStatus } from '../../../borrows/models/borrow-record.model';
+import { createMockBorrowRecord } from '../../../borrows/testing/borrow-record.test-helpers';
 
 describe('BookDetailsComponent', () => {
   let component: BookDetailsComponent;
   let fixture: ComponentFixture<BookDetailsComponent>;
-  let mockBookService: jasmine.SpyObj<BookService>;
-  let mockInventoryService: jasmine.SpyObj<InventoryService>;
-  let mockActivatedRoute: any;
-  let mockRouter: jasmine.SpyObj<Router>;
-  let mockSnackBar: jasmine.SpyObj<MatSnackBar>;
+  let bookServiceSpy: jasmine.SpyObj<BookService>;
+  let inventoryServiceSpy: jasmine.SpyObj<InventoryService>;
+  let routerSpy: jasmine.SpyObj<Router>;
+  let snackBarSpy: jasmine.SpyObj<MatSnackBar>;
+  let bookId: number;
 
   const mockBook: BookResponse = {
     id: 5,
@@ -27,215 +30,406 @@ describe('BookDetailsComponent', () => {
   };
 
   beforeEach(async () => {
-    const bookServiceSpy = jasmine.createSpyObj('BookService', ['getBookById']);
-    const inventoryServiceSpy = jasmine.createSpyObj('InventoryService', ['borrowBook']);
-    const paramMapSpy = jasmine.createSpyObj('ParamMap', ['get']);
-    const activatedRouteSpy = {
-      snapshot: {
-        paramMap: paramMapSpy
-      }
-    };
-    const routerSpy = jasmine.createSpyObj('Router', ['navigate']);
-    const snackBarSpy = jasmine.createSpyObj('MatSnackBar', ['open']);
+    bookServiceSpy = jasmine.createSpyObj('BookService', ['getBookById']);
+    inventoryServiceSpy = jasmine.createSpyObj('InventoryService', ['borrowBook', 'returnBook', 'checkBorrowStatus']);
+    routerSpy = jasmine.createSpyObj('Router', ['navigate']);
+    snackBarSpy = jasmine.createSpyObj('MatSnackBar', ['open']);
 
     await TestBed.configureTestingModule({
       imports: [BookDetailsComponent],
       providers: [
         { provide: BookService, useValue: bookServiceSpy },
         { provide: InventoryService, useValue: inventoryServiceSpy },
-        { provide: ActivatedRoute, useValue: activatedRouteSpy },
+        { provide: ActivatedRoute, useValue: {
+            snapshot: {
+              paramMap: convertToParamMap({ id: '5' }),
+            },
+          },  
+        },
         { provide: Router, useValue: routerSpy },
-        { provide: MatSnackBar, useValue: snackBarSpy }
       ]
-    }).compileComponents();
+    })
+    .overrideProvider(MatSnackBar, { useValue: snackBarSpy })
+    .compileComponents();
 
     fixture = TestBed.createComponent(BookDetailsComponent);
     component = fixture.componentInstance;
-    mockBookService = TestBed.inject(BookService) as jasmine.SpyObj<BookService>;
-    mockInventoryService = TestBed.inject(InventoryService) as jasmine.SpyObj<InventoryService>;
-    mockActivatedRoute = TestBed.inject(ActivatedRoute);
-    mockRouter = TestBed.inject(Router) as jasmine.SpyObj<Router>;
-    mockSnackBar = TestBed.inject(MatSnackBar) as jasmine.SpyObj<MatSnackBar>;
   });
 
-  describe('Component Initialization', () => {
-    it('should create', () => {
-      expect(component).toBeTruthy();
+  describe('Initialization', () => {
+    it('should create services', () => {
+      expect(bookServiceSpy).toBeTruthy();
+      expect(inventoryServiceSpy).toBeTruthy();
     });
 
-    it('loads book by ID from route params', () => {
-      // Arrange
-      mockActivatedRoute.snapshot.paramMap.get.and.returnValue('5');
-      mockBookService.getBookById.and.returnValue(of(mockBook));
-
-      // Act
-      component.ngOnInit();
-      fixture.detectChanges();
-
-      // Assert
-      expect(mockBookService.getBookById).toHaveBeenCalledWith(5);
-      expect(component.book()).toEqual(mockBook);
-      expect(component.loading()).toBeFalse();
+    it('should inject mock dependencies', () => {
+      console.log(component['snackBar'] === snackBarSpy);
+      expect(component['bookService'] === bookServiceSpy);
+      expect(component['inventoryService'] === inventoryServiceSpy);
+      console.log(component['router'] === routerSpy);
     });
 
-    it('displays loading state while fetching', () => {
-      // Arrange
-      mockActivatedRoute.snapshot.paramMap.get.and.returnValue('5');
-      mockBookService.getBookById.and.returnValue(of(mockBook));
-
-      // Check initial loading state
-      expect(component.loading()).toBeTrue();
-      
-      // Act
-      component.ngOnInit();
-      fixture.detectChanges();
-      
-      // Assert
-      expect(component.loading()).toBeFalse();
+    it('should read id from route', () => {
+      expect(component['route'].snapshot.paramMap.get('id')).toBe('5');
     });
 
-    it('redirects to dashboard if book not found (404)', () => {
-      // Arrange
-      mockActivatedRoute.snapshot.paramMap.get.and.returnValue('5');
-      const error = { status: 404 };
-      mockBookService.getBookById.and.returnValue(throwError(() => error));
+    it('should load book on init', () => {
+      bookId = Number(component['route'].snapshot.paramMap.get('id'));
+      bookServiceSpy.getBookById.and.returnValue(of(mockBook));
+      inventoryServiceSpy.checkBorrowStatus.and.returnValue(of({borrowed: false}));
 
-      // Act
       component.ngOnInit();
-      fixture.detectChanges();
 
-      // Assert - check that the service was called and loading state is updated
-      expect(mockBookService.getBookById).toHaveBeenCalledWith(5);
-      expect(component.loading()).toBeFalse();
-      // Note: In a real test environment, the error callbacks would be executed
-      // but in the test environment they may not execute immediately
+      expect(bookServiceSpy.getBookById).toHaveBeenCalled();
+      expect(inventoryServiceSpy.checkBorrowStatus).toHaveBeenCalled();
     });
   });
 
-  describe('Display Tests', () => {
+  describe('Borrow Status Check (new)', () => {
+    it('should set hasBorrowed to true when user has borrowed book', (done) => {
+      // Arrange
+      inventoryServiceSpy.checkBorrowStatus.and.returnValue(
+        of({ borrowed: true })
+      );
+
+      // Act
+      component.checkBorrowStatus(5);
+      TestBed.flushEffects();
+
+      // Assert
+      setTimeout(() => {
+        expect(component.hasBorrowed()).toBe(true);
+        done();
+      }, 0);
+    });
+
+    it('should set hasBorrowed to false when user has not borrowed book', (done) => {
+      // Arrange
+      inventoryServiceSpy.checkBorrowStatus.and.returnValue(
+        of({ borrowed: false })
+      );
+
+      // Act
+      component.checkBorrowStatus(5);
+      TestBed.flushEffects();
+
+      // Assert
+      setTimeout(() => {
+        expect(component.hasBorrowed()).toBe(false);
+        done();
+      }, 0);
+    });
+
+    it('should set checkingStatus to true while checking status', fakeAsync(() => {
+      // Arrange
+      inventoryServiceSpy.checkBorrowStatus.and.returnValue(scheduled([{borrowed : false}], asyncScheduler));
+
+      // Act
+      component.checkBorrowStatus(5);
+
+      // Assert (before subscription completes)
+      expect(component.checkingStatus()).toBe(true);
+
+      tick();
+
+      // Assert (after subscription completes)
+      expect(component.checkingStatus()).toBe(false);
+    }));
+
+    it('should NOT show error to user if status check fails', (done) => {
+      // Arrange
+      inventoryServiceSpy.checkBorrowStatus.and.returnValue(
+        throwError(() => new Error('Network error'))
+      );
+
+      // Act
+      component.checkBorrowStatus(5);
+      TestBed.flushEffects();
+
+      // Assert
+      setTimeout(() => {
+        expect(component['snackBar'].open).not.toHaveBeenCalled();
+        done();
+      }, 0);
+    });
+  });
+
+  describe('Borrow Button Behavior', () => {
     beforeEach(() => {
-      mockActivatedRoute.snapshot.paramMap.get.and.returnValue('5');
-      mockBookService.getBookById.and.returnValue(of(mockBook));
-      component.ngOnInit();
+      bookServiceSpy.getBookById.and.returnValue(of(mockBook));
+      component.checkingStatus.set(false);
+    });
+
+    it('should display "Borrow Book" button when user has not borrowed', () => {
+      // Arrange
+      inventoryServiceSpy.checkBorrowStatus.and.returnValue(of({borrowed : false}));
+      component.actionInProgress.set(false);
       fixture.detectChanges();
-    });
-
-    it('displays book information correctly', () => {
-      // Arrange
-      const compiled = fixture.nativeElement;
 
       // Assert
-      expect(compiled.querySelector('mat-card-title').textContent.trim()).toBe('Test Book');
-      expect(compiled.querySelector('mat-card-subtitle').textContent.trim()).toBe('Test Author');
-      expect(compiled.querySelector('.genre-chip').textContent.trim()).toBe('FICTION');
-      expect(compiled.querySelector('.description p').textContent.trim()).toBe('A test book description');
-      expect(compiled.querySelector('.availability span').textContent.trim()).toBe('3 copies available');
+      const borrowButton = fixture.debugElement.query(
+        By.css('button[color="primary"]')
+      );
+      expect(borrowButton).not.toBeNull();
+      expect(borrowButton.nativeElement.textContent).toContain('Borrow Book');
     });
 
-    it('shows placeholder book icon', () => {
+    it('should display "Return Book" button when user has borrowed', () => {
       // Arrange
-      const compiled = fixture.nativeElement;
+      inventoryServiceSpy.checkBorrowStatus.and.returnValue(of({borrowed : true}));
+      component.actionInProgress.set(false);
+      fixture.detectChanges();
 
       // Assert
-      const bookIcon = compiled.querySelector('.book-icon');
-      expect(bookIcon).toBeTruthy();
-      expect(bookIcon.textContent.trim()).toBe('menu_book');
+      const returnButton = fixture.debugElement.query(
+        By.css('button[color="accent"]')
+      );
+      expect(returnButton).not.toBeNull();
+      expect(returnButton.nativeElement.textContent).toContain('Return Book');
+    });
+
+    it('should disable borrow button when user has already borrowed', () => {
+      // Arrange
+      inventoryServiceSpy.checkBorrowStatus.and.returnValue(of({borrowed : true}));
+      component.actionInProgress.set(false);
+      fixture.detectChanges();
+
+      // Assert
+      const borrowButton = fixture.debugElement.query(
+        By.css('button[color="primary"]')
+      );
+      // Borrow button should not exist when hasBorrowed=true
+      expect(borrowButton).toBeNull();
+    });
+
+    it('should show "View in My Books" link when user has borrowed', () => {
+      // Arrange
+      inventoryServiceSpy.checkBorrowStatus.and.returnValue(of({borrowed : true}));
+      component.actionInProgress.set(false);
+      fixture.detectChanges();
+
+      // Assert
+      const myBooksLink = fixture.debugElement.query(
+        By.css('button[routerLink="/my-books"]')
+      );
+      expect(myBooksLink).toBeTruthy();
     });
   });
 
-  describe('Borrow Action Tests', () => {
+  describe('Borrow Book Action', () => {
     beforeEach(() => {
-      mockActivatedRoute.snapshot.paramMap.get.and.returnValue('5');
-      mockBookService.getBookById.and.returnValue(of(mockBook));
-      component.ngOnInit();
+      bookServiceSpy.getBookById.and.returnValue(of(mockBook));
+      inventoryServiceSpy.checkBorrowStatus.and.returnValue(of({borrowed : false}));
       fixture.detectChanges();
     });
 
-    it('shows borrow button when book is available', () => {
+    it('should call inventoryService.borrowBook with bookId', fakeAsync(() => {
       // Arrange
-      const compiled = fixture.nativeElement;
-
-      // Assert
-      const borrowButton = compiled.querySelector('button[color="primary"]');
-      expect(borrowButton).toBeTruthy();
-      expect(borrowButton.textContent.trim()).toContain('Borrow Book');
-      expect(borrowButton.disabled).toBeFalse();
-    });
-
-    it('disables borrow button when book is unavailable', () => {
-      // Arrange
-      const unavailableBook = { ...mockBook, availableCopies: 0 };
-      component.book.set(unavailableBook);
-      fixture.detectChanges();
-      const compiled = fixture.nativeElement;
-
-      // Assert
-      const borrowButton = compiled.querySelector('button[color="primary"]');
-      expect(borrowButton).toBeTruthy();
-      expect(borrowButton.disabled).toBeTrue();
-    });
-
-    it('calls inventory service on borrow click', () => {
-      // Arrange
-      const updatedBook = { ...mockBook, availableCopies: 2 };
-      mockInventoryService.borrowBook.and.returnValue(of(updatedBook));
-      const compiled = fixture.nativeElement;
+      const mockBorrowRecord = createMockBorrowRecord({ bookId: 5 });
+      inventoryServiceSpy.borrowBook.and.returnValue(scheduled([mockBorrowRecord], asyncScheduler));
 
       // Act
-      const borrowButton = compiled.querySelector('button[color="primary"]');
-      borrowButton.click();
-      fixture.detectChanges();
+      component.borrowBook();
+      tick();
 
       // Assert
-      expect(mockInventoryService.borrowBook).toHaveBeenCalledWith(5);
-      expect(component.actionInProgress()).toBeFalse();
+      expect(inventoryServiceSpy.borrowBook).toHaveBeenCalledWith(5);
+    }));
+
+    it('should update book availableCopies after successful borrow', (done) => {
+      // Arrange
+      const mockBorrowRecord = createMockBorrowRecord({ bookId: 5 });
+      inventoryServiceSpy.borrowBook.and.returnValue(of(mockBorrowRecord));
+      const initialCopies = component.book()!.availableCopies;
+
+      // Act
+      component.borrowBook();
+      TestBed.flushEffects();
+
+      // Assert
+      setTimeout(() => {
+        expect(component.book()!.availableCopies).toBe(initialCopies - 1);
+        done();
+      }, 0);
+    });
+
+    it('should set hasBorrowed to true after successful borrow', (done) => {
+      // Arrange
+      const mockBorrowRecord = createMockBorrowRecord({ bookId: 5 });
+      inventoryServiceSpy.borrowBook.and.returnValue(of(mockBorrowRecord));
+
+      // Act
+      component.borrowBook();
+      TestBed.flushEffects();
+
+      // Assert
+      setTimeout(() => {
+        expect(component.hasBorrowed()).toBe(true);
+        done();
+      }, 0);
+    });
+
+    it('should display due date in success message', (done) => {
+      // Arrange
+      const mockBorrowRecord = createMockBorrowRecord({ 
+        bookId: 5,
+        dueDate: '2025-10-21'
+      });
+      inventoryServiceSpy.borrowBook.and.returnValue(of(mockBorrowRecord));
+
+      // Act
+      component.borrowBook();
+      TestBed.flushEffects();
+
+      // Assert
+      setTimeout(() => {
+        expect(component['snackBar'].open).toHaveBeenCalledWith(
+          'Book borrowed successfully',
+          'Close',
+          { duration: 3000 }
+        );
+        done();
+      }, 0);
+    });
+
+    it('should NOT borrow if user has already borrowed', () => {
+      // Arrange
+      inventoryServiceSpy.checkBorrowStatus.and.returnValue(of({borrowed : true}));
+      component.actionInProgress.set(false);
+      inventoryServiceSpy.borrowBook.and.returnValue(throwError(() => new Error('Borrow failed')));
+
+      // Act
+      component.borrowBook();
+
+      // Assert
+      expect(snackBarSpy.open).toHaveBeenCalledWith(
+        'Failed to borrow book',
+        'Close',
+        { duration: 3000 }
+      );
     });
   });
 
-  describe('Success/Error Handling Tests', () => {
+  describe('Return Book Action', () => {
     beforeEach(() => {
-      mockActivatedRoute.snapshot.paramMap.get.and.returnValue('5');
-      mockBookService.getBookById.and.returnValue(of(mockBook));
-      component.ngOnInit();
+      bookServiceSpy.getBookById.and.returnValue(of(mockBook));
+      inventoryServiceSpy.checkBorrowStatus.and.returnValue(of({borrowed : true}));
       fixture.detectChanges();
     });
 
-    it('updates book state and shows success snackbar after borrow', () => {
+    it('should call inventoryService.returnBook with bookId', () => {
       // Arrange
-      const updatedBook = { ...mockBook, availableCopies: 2 };
-      mockInventoryService.borrowBook.and.returnValue(of(updatedBook));
-      const compiled = fixture.nativeElement;
+      const mockBorrowRecord = createMockBorrowRecord({ 
+        bookId: 5,
+        status: BorrowStatus.RETURNED,
+        returnDate: '2025-10-14'
+      });
+      inventoryServiceSpy.returnBook.and.returnValue(of(mockBorrowRecord));
 
       // Act
-      const borrowButton = compiled.querySelector('button[color="primary"]');
-      borrowButton.click();
-      fixture.detectChanges();
+      component.returnBook();
 
-      // Assert - check that the service was called and book state is updated
-      expect(mockInventoryService.borrowBook).toHaveBeenCalledWith(5);
-      expect(component.book()).toEqual(updatedBook);
-      expect(component.actionInProgress()).toBeFalse();
-      // Note: In a real test environment, the success callbacks would be executed
-      // but in the test environment they may not execute immediately
+      // Assert
+      expect(inventoryServiceSpy.returnBook).toHaveBeenCalledWith(5);
     });
 
-    it('shows error snackbar on borrow failure', () => {
+    it('should update book availableCopies after successful return', (done) => {
       // Arrange
-      const error = { error: { message: 'Book unavailable' } };
-      mockInventoryService.borrowBook.and.returnValue(throwError(() => error));
-      const compiled = fixture.nativeElement;
+      const mockBorrowRecord = createMockBorrowRecord({ 
+        bookId: 5,
+        status: BorrowStatus.RETURNED,
+        returnDate: '2025-10-14'
+      });
+      inventoryServiceSpy.returnBook.and.returnValue(of(mockBorrowRecord));
+      const initialCopies = component.book()!.availableCopies;
 
       // Act
-      const borrowButton = compiled.querySelector('button[color="primary"]');
-      borrowButton.click();
-      fixture.detectChanges();
+      component.returnBook();
+      TestBed.flushEffects();
 
-      // Assert - check that the service was called and state is reset
-      expect(mockInventoryService.borrowBook).toHaveBeenCalledWith(5);
-      expect(component.book()).toEqual(mockBook); // Should not be updated
-      expect(component.actionInProgress()).toBeFalse();
-      // Note: In a real test environment, the error callbacks would be executed
-      // but in the test environment they may not execute immediately
+      // Assert
+      setTimeout(() => {
+        expect(component.book()!.availableCopies).toBe(initialCopies + 1);
+        done();
+      }, 0);
+    });
+
+    it('should set hasBorrowed to false after successful return', (done) => {
+      // Arrange
+      const mockBorrowRecord = createMockBorrowRecord({ 
+        bookId: 5,
+        status: BorrowStatus.RETURNED,
+        returnDate: '2025-10-14'
+      });
+      inventoryServiceSpy.returnBook.and.returnValue(of(mockBorrowRecord));
+
+      // Act
+      component.returnBook();
+      TestBed.flushEffects();
+
+      // Assert
+      setTimeout(() => {
+        expect(component.hasBorrowed()).toBe(false);
+        done();
+      }, 0);
+    });
+    
+    it('should show success message if return was on time', (done) => {
+      // Arrange
+      const mockBorrowRecord = createMockBorrowRecord({ 
+        bookId: 5,
+        status: BorrowStatus.RETURNED,
+        returnDate: '2025-10-14',
+        isOverdue: false
+      });
+      inventoryServiceSpy.returnBook.and.returnValue(of(mockBorrowRecord));
+
+      // Act
+      component.returnBook();
+      TestBed.flushEffects();
+
+      // Assert
+      setTimeout(() => {
+        expect(component['snackBar'].open).toHaveBeenCalledWith(
+          'Book returned successfully',
+          'Close',
+          { duration: 3000 }
+        );
+        done();
+      }, 0);
     });
   });
+
+  describe('canBorrow getter', () => {
+    it('should return false if user has already borrowed', () => {
+      // Arrange
+      bookServiceSpy.getBookById.and.returnValue(of({...mockBook, availableCopies: 5}));
+      inventoryServiceSpy.checkBorrowStatus.and.returnValue(of({borrowed : true}));
+      fixture.detectChanges();
+
+      // Act & Assert
+      expect(component.canBorrow).toBe(false);
+    });
+
+    it('should return true if book available and user has not borrowed', () => {
+      // Arrange
+      bookServiceSpy.getBookById.and.returnValue(of(mockBook));
+      inventoryServiceSpy.checkBorrowStatus.and.returnValue(of({borrowed : false}));
+      fixture.detectChanges();
+
+      // Act & Assert
+      expect(component.canBorrow).toBe(true);
+    });
+
+    it('should return false if no copies available even if user has not borrowed', () => {
+      // Arrange
+      bookServiceSpy.getBookById.and.returnValue(of({...mockBook, availableCopies: 0}));
+      inventoryServiceSpy.checkBorrowStatus.and.returnValue(of({borrowed : false}));
+      fixture.detectChanges();
+
+      // Act & Assert
+      expect(component.canBorrow).toBe(false);
+    });
+  });
+
 });

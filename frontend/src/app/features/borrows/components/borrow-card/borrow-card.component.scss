@@ -1,0 +1,159 @@
+.borrow-card {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+
+  &:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+  }
+
+  mat-card-content {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    padding: 1rem 1.25rem;
+  }
+
+  .card-layout {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+  }
+
+  /* ============ Book Info Section ============ */
+  .book-info {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    margin-bottom: 1rem;
+
+    .book-icon {
+      width: 20px;
+      height: 20px;
+      object-fit: contain;
+      vertical-align: middle;
+      margin-right: 4px;
+    }
+
+    .book-details {
+      flex: 1;
+
+      .book-title {
+        margin: 0;
+        font-size: 1.1rem;
+        font-weight: 600;
+        color: #333;
+      }
+
+      .book-author,
+      .book-isbn {
+        margin: 0.15rem 0;
+        font-size: 0.9rem;
+        color: #666;
+      }
+    }
+  }
+
+  /* ============ Borrow Info Section ============ */
+  .borrow-info {
+    flex-grow: 1; /* Pushes the button section down */
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-start;
+    gap: 0.5rem;
+
+    .status-chip {
+      width: fit-content;
+      font-weight: 500;
+      font-size: 0.85rem;
+
+      &.active {
+        background-color: #e3f2fd; /* Light blue */
+        color: #1976d2;
+      }
+
+      &.returned {
+        background-color: #f5f5f5; /* Light gray */
+        color: #555;
+      }
+    }
+
+    .dates {
+      margin-top: 0.5rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.3rem;
+
+      .date-row {
+        display: flex;
+        justify-content: space-between;
+        font-size: 0.9rem;
+
+        .label {
+          color: #555;
+          font-weight: 500;
+        }
+
+        .due-date {
+          display: flex;
+          align-items: center;
+          gap: 0.3rem;
+        }
+
+        &.overdue {
+          .due-date {
+            color: #d32f2f; /* Red for overdue */
+            font-weight: 600;
+          }
+
+          .overdue-icon {
+            color: #d32f2f;
+            font-size: 1rem;
+          }
+        }
+      }
+    }
+  }
+
+  /* ============ Actions Section ============ */
+  .card-actions {
+    margin-top: auto; /* Pushes actions to bottom */
+    display: flex;
+    justify-content: flex-end;
+    padding-top: 1rem;
+    border-top: 1px solid rgba(0, 0, 0, 0.06);
+
+    button {
+      text-transform: none;
+      font-weight: 500;
+      font-size: 0.9rem;
+    }
+  }
+
+  /* ============ Responsive ============ */
+  @media (max-width: 600px) {
+    mat-card-content {
+      padding: 0.75rem;
+    }
+
+    .book-info {
+      gap: 0.75rem;
+
+      .book-icon {
+        font-size: 1.8rem;
+      }
+    }
+
+    .book-details .book-title {
+      font-size: 1rem;
+    }
+
+    .card-actions {
+      justify-content: center;
+    }
+  }
+}

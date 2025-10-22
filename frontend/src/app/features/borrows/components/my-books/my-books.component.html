@@ -1,0 +1,75 @@
+<!-- src/app/features/borrows/components/my-books/my-books.component.html -->
+
+<div class="my-books-container">
+  <!-- Header -->
+  <div class="header">
+    <h1>My Books</h1>
+    <button mat-stroked-button (click)="goToCatalog()">
+     <img src="/assets/icons/browse.png" alt="browse icon" class="browse-icon">
+      Browse Catalog
+    </button>
+  </div>
+
+  <!-- Filter Toggle -->
+  <mat-button-toggle-group 
+    [value]="selectedFilter()" 
+    (valueChange)="onFilterChange($event)"
+    class="filter-toggle">
+    <mat-button-toggle [value]="'BORROWED'">
+      Active ({{ activeCount() }})
+    </mat-button-toggle>
+    <mat-button-toggle [value]="'RETURNED'">
+      History
+    </mat-button-toggle>
+  </mat-button-toggle-group>
+
+  <!-- Loading State -->
+  @if (loading()) {
+    <div class="loading-container">
+      <mat-spinner></mat-spinner>
+      <p>Loading your books...</p>
+    </div>
+  }
+
+  <!-- Empty State -->
+  @else if (isEmpty()) {
+    <mat-card class="empty-state">
+      <mat-card-content>
+        <mat-icon class="empty-icon">menu_book</mat-icon>
+        @if (selectedFilter() === 'BORROWED') {
+          <h2>No books borrowed yet</h2>
+          <p>Start exploring our catalog!</p>
+          <button mat-raised-button color="primary" (click)="goToCatalog()">
+            Browse Catalog
+          </button>
+        } @else () {
+           <h2>No borrow history</h2>
+            <p>Your past borrows will appear here.</p>
+        } 
+      </mat-card-content>
+    </mat-card>
+  }
+
+  <!-- Borrow Records List -->
+  @else {
+    <div class="borrow-list">
+      @for (record of borrowRecords(); track record.id) {
+        <app-borrow-card 
+          [borrowRecord]="record"
+          (viewDetails)="viewBookDetails($event)">
+        </app-borrow-card>
+      }
+    </div>
+
+    <!-- Pagination -->
+    @if (totalPages() > 1) {
+      <mat-paginator
+        [length]="totalElements()"
+        [pageSize]="pageSize()"
+        [pageIndex]="currentPage()"
+        [pageSizeOptions]="[5, 10, 20]"
+        (page)="onPageChange($event)">
+      </mat-paginator>
+    }
+  }
+</div>

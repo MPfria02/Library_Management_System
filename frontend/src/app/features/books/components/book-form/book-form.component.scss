@@ -1,22 +1,176 @@
+/* ============================================================
+   Book Form Page — Portfolio-Ready Redesign
+   Design Goals:
+   - Elegant, modern, and subtle
+   - Consistent spacing rhythm and type scale
+   - Minimal distraction, strong hierarchy
+   ============================================================ */
+
+:host {
+  display: block;
+  background: #f8fafc;
+  min-height: 100vh;
+  padding: 2rem 2.5rem;
+}
+
+/* ===== Toolbar ===== */
 .toolbar {
-  margin-bottom: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 1.75rem;
+
+  h1 {
+    font-size: 1.6rem;
+    font-weight: 600;
+    color: #1b365d;
+    margin: 0;
+    letter-spacing: -0.2px;
+  }
 }
 
-.book-form .grid {
+/* ===== Card Wrapper ===== */
+mat-card {
+  background: #ffffff;
+  border-radius: 14px;
+  box-shadow: 0 4px 16px rgba(27, 54, 93, 0.08);
+  padding: 2rem 2.25rem;
+  max-width: 920px;
+  margin: 0 auto;
+  transition: box-shadow 0.25s ease, transform 0.25s ease;
+
+  &:hover {
+    box-shadow: 0 6px 20px rgba(27, 54, 93, 0.12);
+    transform: translateY(-2px);
+  }
+}
+
+/* ===== Form Layout ===== */
+.book-form {
+  display: flex;
+  flex-direction: column;
+  gap: 2rem;
+}
+
+.grid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 16px;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 1.5rem;
+
+  .full {
+    grid-column: 1 / -1;
+  }
 }
 
-.book-form .full {
-  grid-column: 1 / -1;
+/* ===== Form Fields ===== */
+mat-form-field {
+  width: 100%;
+
+  ::ng-deep .mat-mdc-text-field-wrapper {
+    border-radius: 8px !important;
+  }
+
+  mat-label {
+    font-weight: 500;
+    color: #2f3e57;
+  }
+
+  input,
+  textarea {
+    font-size: 0.95rem;
+  }
+
+  mat-hint {
+    font-size: 0.8rem;
+    color: #6b7280;
+  }
+
+  mat-error {
+    font-size: 0.8rem;
+    color: #d32f2f;
+  }
 }
 
+/* ===== Actions ===== */
 .actions {
   display: flex;
   justify-content: flex-end;
-  gap: 8px;
-  margin-top: 16px;
+  gap: 1rem;
+  margin-top: 0.5rem;
+
+  button {
+    min-width: 140px;
+    padding: 0.6rem 1.25rem;
+    font-weight: 500;
+    border-radius: 8px;
+    letter-spacing: 0.3px;
+    transition: all 0.2s ease;
+
+    &[mat-button] {
+      color: #374151;
+
+      &:hover {
+        background: rgba(55, 65, 81, 0.08);
+      }
+    }
+
+    &[mat-raised-button][color="primary"] {
+      background: #0078d4;
+      color: #ffffff;
+
+      &:hover {
+        background: #005ea6;
+      }
+
+      &:disabled {
+        background: #cfd8dc;
+        color: #6b7280;
+      }
+    }
+  }
 }
 
+/* ===== Responsive Layout ===== */
+@media (max-width: 959px) {
+  :host {
+    padding: 1.5rem;
+  }
 
+  mat-card {
+    padding: 1.5rem;
+  }
+
+  .toolbar h1 {
+    font-size: 1.4rem;
+  }
+
+  .actions {
+    flex-direction: column-reverse;
+    align-items: stretch;
+
+    button {
+      width: 100%;
+    }
+  }
+}
+
+/* ===== Subtle Animations ===== */
+mat-form-field,
+.actions button {
+  transition: all 0.2s ease;
+}
+
+/* ===== Datepicker and Select Enhancements ===== */
+::ng-deep {
+  .mat-mdc-select-value {
+    font-size: 0.95rem;
+  }
+
+  .mat-calendar-body-selected {
+    background-color: #0078d4 !important;
+  }
+
+  .mat-mdc-select-arrow {
+    color: #374151;
+  }
+}
