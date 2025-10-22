@@ -2,10 +2,17 @@
   <!-- Header -->
   <div class="catalog-header">
     <h1>Library Catalog</h1>
+    <div class="header-actions">
+    <!-- 🆕 Quick link to My Books -->
+    <button mat-stroked-button (click)="viewMyBooks()">
+      <mat-icon>library_books</mat-icon>
+      My Books
+    </button>
     <button mat-raised-button color="primary" (click)="openFilterDialog()">
       <mat-icon>filter_list</mat-icon>
       Search / Filter
     </button>
+  </div>
   </div>
 
   <!-- Loading Spinner -->
@@ -31,17 +38,20 @@
       </mat-card-header>
 
       <mat-card-content>
-        <mat-chip class="genre-chip">{{ book.genre }}</mat-chip>
-        <p class="availability">
-          <mat-icon
-            [class.available]="book.availableCopies > 0"
-            [class.unavailable]="book.availableCopies === 0"
-          >
-            {{ book.availableCopies > 0 ? 'check_circle' : 'cancel' }}
-          </mat-icon>
-          {{ book.availableCopies }} available
-        </p>
+        <div class="book-info">
+          <mat-chip class="genre-chip">{{ book.genre }}</mat-chip>
+          <p class="availability">
+            <mat-icon
+              [class.available]="book.availableCopies > 0"
+              [class.unavailable]="book.availableCopies === 0"
+            >
+              {{ book.availableCopies > 0 ? 'check_circle' : 'cancel' }}
+            </mat-icon>
+            {{ book.availableCopies }} available
+          </p>
+        </div>
       </mat-card-content>
+      
 
       <mat-card-actions>
         <button mat-button color="primary" (click)="viewBookDetails(book.id)">More Info</button>

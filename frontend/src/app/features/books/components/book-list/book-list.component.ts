@@ -78,6 +78,10 @@ export class BookListComponent implements OnInit {
     this.router.navigate(['/books', bookId]);
   }
 
+  viewMyBooks():void {
+    this.router.navigate(['dashboard/my-books']);
+  }
+
   /** Filter dialog for filtering books given a certain criteria */
   openFilterDialog(): void {
       const dialogRef = this.dialog.open(BookFiltersComponent, {
