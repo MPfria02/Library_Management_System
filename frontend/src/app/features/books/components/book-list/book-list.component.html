@@ -5,11 +5,11 @@
     <div class="header-actions">
     <!-- 🆕 Quick link to My Books -->
     <button mat-stroked-button (click)="viewMyBooks()">
-      <mat-icon>library_books</mat-icon>
+      <img src="assets/icons/books.png" alt="books" class="book-icon">
       My Books
     </button>
     <button mat-raised-button color="primary" (click)="openFilterDialog()">
-      <mat-icon>filter_list</mat-icon>
+      <img src="assets/icons/search.png" alt="search" class="search-icon">
       Search / Filter
     </button>
   </div>
@@ -32,7 +32,7 @@
   <div *ngIf="!loading() && books().length > 0" class="book-grid">
     <mat-card *ngFor="let book of books()" class="book-card">
       <mat-card-header>
-        <mat-icon mat-card-avatar class="book-icon">menu_book</mat-icon>
+         <img src="assets/icons/book.png" alt="book-icon" class="book-avatar">
         <mat-card-title>{{ book.title }}</mat-card-title>
         <mat-card-subtitle>{{ book.author }}</mat-card-subtitle>
       </mat-card-header>
@@ -41,12 +41,11 @@
         <div class="book-info">
           <mat-chip class="genre-chip">{{ book.genre }}</mat-chip>
           <p class="availability">
-            <mat-icon
-              [class.available]="book.availableCopies > 0"
-              [class.unavailable]="book.availableCopies === 0"
-            >
-              {{ book.availableCopies > 0 ? 'check_circle' : 'cancel' }}
-            </mat-icon>
+            <img
+              [src]="book.availableCopies > 0 ? 'assets/icons/available.png' : 'assets/icons/unavailable.png'"
+              [alt]="book.availableCopies > 0 ? 'Available' : 'Unavailable'"
+              class="availability-icon"
+            />
             {{ book.availableCopies }} available
           </p>
         </div>

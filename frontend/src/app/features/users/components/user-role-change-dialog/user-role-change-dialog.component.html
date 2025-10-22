@@ -4,8 +4,6 @@
 
 <mat-dialog-content class="dialog-content">
   <div class="warning-section">
-    <mat-icon color="warn" class="warning-icon">warning</mat-icon>
-    
     <div class="warning-message">
       <p class="main-message">
         Are you sure you want to change <strong>{{ data.userName }}</strong>'s role from 
@@ -20,7 +18,7 @@
     <mat-card class="warning-card admin-warning">
       <mat-card-content>
         <div class="warning-content">
-          <mat-icon color="warn">security</mat-icon>
+          <img src="/assets/icons/alert.png" alt="alert-icon" class="alert-icon">
           <div class="warning-text">
             <h4>Administrative Privileges</h4>
             <p>This will grant full administrative privileges including:</p>
@@ -40,7 +38,6 @@
     <mat-card class="warning-card member-warning">
       <mat-card-content>
         <div class="warning-content">
-          <mat-icon color="accent">person</mat-icon>
           <div class="warning-text">
             <h4>Standard User Access</h4>
             <p>This will remove administrative privileges. The user will only be able to:</p>

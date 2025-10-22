@@ -1,139 +1,185 @@
 .dialog-header {
-  padding: 16px 24px 0 24px;
-  
+  text-align: center;
+  padding: 1rem 1.5rem 0;
   h2 {
+    font-size: 1.4rem;
+    font-weight: 600;
+    color: #0d3b66;
     margin: 0;
-    font-size: 20px;
-    font-weight: 500;
-    color: #333;
   }
 }
 
+/* ---------------------------------------
+   Dialog Content
+--------------------------------------- */
 .dialog-content {
-  padding: 24px;
-  min-width: 400px;
-  
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+  padding: 1rem 1.5rem;
+
   .warning-section {
+    .warning-message {
+      text-align: center;
+
+      .main-message {
+        color: #374151;
+        font-size: 1rem;
+        line-height: 1.5;
+        margin: 0;
+      }
+
+      strong {
+        color: #0d3b66;
+        font-weight: 600;
+      }
+    }
+  }
+}
+
+/* ---------------------------------------
+   Warning Cards
+--------------------------------------- */
+.warning-card {
+  border-radius: 12px;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
+  overflow: hidden;
+
+  mat-card-content {
+    padding: 1.25rem;
+  }
+
+  .warning-content {
     display: flex;
     align-items: flex-start;
-    gap: 16px;
-    margin-bottom: 24px;
-    
-    .warning-icon {
-      font-size: 32px;
-      height: 32px;
-      width: 32px;
-      margin-top: 4px;
+    gap: 1rem;
+
+    .alert-icon,
+    mat-icon {
+      flex-shrink: 0;
+      width: 28px;
+      height: 28px;
     }
-    
-    .warning-message {
-      flex: 1;
-      
-      .main-message {
+
+    .alert-icon {
+      object-fit: contain;
+      filter: brightness(0) saturate(100%) invert(28%) sepia(95%) saturate(1850%)
+        hue-rotate(355deg) brightness(94%) contrast(95%);
+    }
+
+    .warning-text {
+      display: flex;
+      flex-direction: column;
+      gap: 0.25rem;
+
+      h4 {
+        font-size: 1.05rem;
+        font-weight: 600;
         margin: 0;
-        font-size: 16px;
-        line-height: 1.5;
-        color: #333;
-        
-        strong {
-          color: #1976d2;
+      }
+
+      p {
+        margin: 0;
+        font-size: 0.9rem;
+        color: #4b5563;
+      }
+
+      ul {
+        margin: 0.25rem 0 0 1.25rem;
+        padding: 0;
+        color: #555;
+        font-size: 0.9rem;
+        list-style: disc;
+
+        li {
+          margin-bottom: 0.25rem;
         }
       }
     }
   }
-  
-  .warning-card {
-    margin-top: 16px;
-    border-left: 4px solid;
-    
-    &.admin-warning {
-      border-left-color: #f44336;
-      background-color: #ffebee;
+
+  &.admin-warning {
+    border-left: 5px solid #d32f2f;
+    background: #fff6f6;
+
+    h4 {
+      color: #b71c1c;
     }
-    
-    &.member-warning {
-      border-left-color: #ff9800;
-      background-color: #fff3e0;
+  }
+
+  &.member-warning {
+    border-left: 5px solid #1976d2;
+    background: #f5faff;
+
+    h4 {
+      color: #0d47a1;
     }
-    
-    .warning-content {
-      display: flex;
-      align-items: flex-start;
-      gap: 12px;
-      
-      mat-icon {
-        font-size: 24px;
-        height: 24px;
-        width: 24px;
-        margin-top: 2px;
-      }
-      
-      .warning-text {
-        flex: 1;
-        
-        h4 {
-          margin: 0 0 8px 0;
-          font-size: 16px;
-          font-weight: 500;
-          color: #333;
-        }
-        
-        p {
-          margin: 0 0 8px 0;
-          font-size: 14px;
-          color: #666;
-        }
-        
-        ul {
-          margin: 0;
-          padding-left: 16px;
-          
-          li {
-            font-size: 14px;
-            color: #666;
-            margin-bottom: 4px;
-          }
-        }
-      }
+
+    mat-icon {
+      color: #1976d2;
+      font-size: 28px;
     }
   }
 }
 
+/* ---------------------------------------
+   Dialog Actions
+--------------------------------------- */
 .dialog-actions {
-  padding: 16px 24px 24px 24px;
   display: flex;
   justify-content: flex-end;
-  gap: 8px;
-  
-  .cancel-button {
-    color: #666;
-  }
-  
-  .confirm-button {
-    font-weight: 500;
-  }
-}
+  gap: 0.75rem;
+  padding: 1rem 1.5rem 1.25rem;
+  border-top: 1px solid #e5e7eb;
+  background: #fafafa;
 
-// Responsive design
-@media (max-width: 600px) {
-  .dialog-content {
-    min-width: unset;
-    padding: 16px;
-    
-    .warning-section {
-      flex-direction: column;
-      gap: 8px;
-      
-      .warning-icon {
-        align-self: center;
+  button {
+    min-width: 120px;
+    font-weight: 500;
+    text-transform: none;
+    border-radius: 8px;
+    transition: all 0.2s ease;
+
+    &.cancel-button {
+      color: #374151;
+
+      &:hover {
+        background: #f3f4f6;
+      }
+    }
+
+    &.confirm-button {
+      background-color: #d32f2f;
+      color: #ffffff;
+
+      &:hover {
+        background-color: #b71c1c;
       }
     }
   }
-  
+}
+
+/* ---------------------------------------
+   Responsive Adjustments
+--------------------------------------- */
+@media (max-width: 599px) {
+  .dialog-content {
+    padding: 1rem;
+
+    .warning-card .warning-content {
+      flex-direction: column;
+      align-items: flex-start;
+
+      .warning-text ul {
+        margin-left: 1rem;
+      }
+    }
+  }
+
   .dialog-actions {
-    padding: 16px;
-    flex-direction: column;
-    
+    flex-direction: column-reverse;
+    align-items: stretch;
+
     button {
       width: 100%;
     }
