@@ -10,6 +10,12 @@ A full-stack containerized web application that automates the workflow of a phys
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-Latest-blue.svg)](https://www.postgresql.org/)
 [![Docker](https://img.shields.io/badge/Docker-Compose-2496ED.svg)](https://www.docker.com/)
 
+## 🎬 Demo
+<p align="center">
+  <img src="screenshots/demo.gif" alt="Library Management System Demo" width="800"/>
+</p>
+User journey: Login → Browse catalog → Search & filter → Borrow book → View in My Books dashboard
+
 ## ✨ Features
 
 ### User Features
@@ -241,6 +247,49 @@ The API follows RESTful principles with JWT authentication. Key endpoints includ
 ### Users (Admin Only)
 - `GET /api/users` - Get all users
 - `PUT /api/users/{id}` - Update user
+
+## 📸 Screenshots
+### 🔐 Authentication
+<table>
+  <tr>
+    <td width="50%">
+      <p align="center"><strong>Login</strong></p>
+      <img src="screenshots/01-login.png" alt="Login Page"/>
+    </td>
+    <td width="50%">
+      <p align="center"><strong>Register</strong></p>
+      <img src="screenshots/02-register.png" alt="Register Page"/>
+    </td>
+  </tr>
+</table>
+
+### 📚 User Features
+<p align="center">
+  <strong>Book Catalog</strong><br/>
+  <img src="screenshots/03-book-catalog.png" alt="Book Catalog" width="800"/>
+</p>
+<p align="center">
+  <strong>Book Details</strong><br/>
+  <img src="screenshots/04-book-details.png" alt="Book Details" width="800"/>
+</p>
+<p align="center">
+  <strong>My Books - Currently Borrowed</strong><br/>
+  <img src="screenshots/05-my-books-borrows.png" alt="My Books - Borrowed" width="800"/>
+</p>
+<p align="center">
+  <strong>My Books - Return History</strong><br/>
+  <img src="screenshots/06-my-books-returns.png" alt="My Books - Returns" width="800"/>
+</p>
+
+### 👨‍💼 Admin Features
+<p align="center">
+  <strong>Book Management</strong><br/>
+  <img src="screenshots/07-admin-books.png" alt="Admin Book Management" width="800"/>
+</p>
+<p align="center">
+  <strong>User Management</strong><br/>
+  <img src="screenshots/08-admin-users.png" alt="Admin User Management" width="800"/>
+</p>
 
 ## 🗄️ Database
 
