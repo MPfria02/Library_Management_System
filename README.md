@@ -103,7 +103,7 @@ User journey: Login → Browse catalog → Search & filter → Borrow book → V
    - Frontend: http://localhost:4200
    - Backend API: http://localhost:8080/api
 
-4. **Default Admin Credentials** (if seeded)
+4. **Default Admin Credentials** (if needed)
    ```
    Email: admin@library.com
    Password: admin123
@@ -307,8 +307,8 @@ Migration files location: `backend/src/main/resources/db/migration/`
 ## 🧪 Testing
 
 ### Backend Testing Strategy
-- **Unit Tests**: Service layer business logic
-- **Slice Tests**: Repository layer with test database
+- **Unit Tests**: Service and Controller layer business logic
+- **Slice Tests**: Controller layer
 - **Integration Tests**: End-to-end API testing
 
 Run all backend tests:
