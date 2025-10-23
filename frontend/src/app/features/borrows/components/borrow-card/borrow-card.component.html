@@ -35,9 +35,9 @@
               <span class="label">Due:</span>
               <span class="due-date">
                 {{ borrowRecord.dueDate | date: 'MMM d, y' }}
-                @if (borrowRecord.isOverdue) {
-                  <mat-icon class="overdue-icon">warning</mat-icon>
-                }
+                <!-- @if (borrowRecord.isOverdue) {
+                  <mat-icon class="overdue-icon"></mat-icon>
+                } -->
               </span>
             </div>
           } @else {

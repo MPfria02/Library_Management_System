@@ -8,14 +8,12 @@
 -- Password: "admin123" (BCrypt encoded)
 -- In production, this should be created through proper registration flow
 INSERT INTO users (email, password, first_name, last_name, role) VALUES 
-('admin@library.com', '$2a$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/LeP4.VbQi7JGF8Baa', 'Library', 'Administrator', 'ADMIN');
+('admin@library.com', '$2a$10$UZzTrCxb1c3isIMDACeDYuPx9BqLg16kFFevVCsceo3KVHkcKeshq', 'Library', 'Administrator', 'ADMIN');
 
 -- Insert sample members
 -- Password: "member123" (BCrypt encoded) 
 INSERT INTO users (email, password, first_name, last_name, phone, role) VALUES 
-('marcel.pulido@email.com', '$2a$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/LeP4.VbQi7JGF8Baa', 'Marcel', 'Pulido', '555-0123', 'MEMBER'),
-('john.doe@email.com', '$2a$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/LeP4.VbQi7JGF8Baa', 'John', 'Doe', '555-0124', 'MEMBER'),
-('jane.smith@email.com', '$2a$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/LeP4.VbQi7JGF8Baa', 'Jane', 'Smith', '555-0125', 'MEMBER');
+('marcel@email.com', '$2a$10$V4eTkJyMASZjTLliANaub.9ek.gVeZAkbSi4iGLRaBOTFdgTaI8sW', 'Marcel', 'Pulido', '555-0123', 'MEMBER');
 
 -- Insert sample books
 INSERT INTO books (isbn, title, author, description, genre, total_copies, available_copies, publication_date) VALUES 
